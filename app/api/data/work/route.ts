@@ -100,11 +100,15 @@ function parseDeleteIds(body: unknown): string[] {
   const data = body as Record<string, unknown>;
 
   if (Array.isArray(data.ids)) {
-    return data.ids.filter((value): value is string => typeof value === 'string' && value);
+    return data.ids.filter(
+      (value): value is string => typeof value === 'string' && value.length > 0,
+    );
   }
 
   if (Array.isArray(data.records)) {
-    return data.records.filter((value): value is string => typeof value === 'string' && value);
+    return data.records.filter(
+      (value): value is string => typeof value === 'string' && value.length > 0,
+    );
   }
 
   if (typeof data.id === 'string' && data.id) {

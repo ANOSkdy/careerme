@@ -23,26 +23,35 @@ interface AirtableWriteRecord<TFields extends Record<string, unknown>> {
   fields: TFields;
 }
 
-interface AirtableRequestOptions extends RequestInit {
+interface AirtableRequestOptions
+  extends Omit<RequestInit, 'body' | 'headers' | 'cache'> {
+  body?: BodyInit | null | Record<string, unknown> | Array<unknown>;
+  headers?: HeadersInit;
   searchParams?: URLSearchParams;
   next?: { revalidate?: number };
+  cache?: RequestCache;
 }
 
 export const AIRTABLE_PAGE_SIZE = 100;
 const MAX_RETRIES = 3;
 
-const AIRTABLE_BASE_ID = process.env.AIRTABLE_BASE_ID;
-const AIRTABLE_API_KEY = process.env.AIRTABLE_API_KEY;
+function getAirtableBaseUrl(): string {
+  const baseId = process.env.AIRTABLE_BASE_ID;
+  if (!baseId) {
+    throw new Error('Missing AIRTABLE_BASE_ID environment variable');
+  }
 
-if (!AIRTABLE_BASE_ID) {
-  throw new Error('Missing AIRTABLE_BASE_ID environment variable');
+  return `https://api.airtable.com/v0/${baseId}`;
 }
 
-if (!AIRTABLE_API_KEY) {
-  throw new Error('Missing AIRTABLE_API_KEY environment variable');
-}
+function getAirtableApiKey(): string {
+  const apiKey = process.env.AIRTABLE_API_KEY;
+  if (!apiKey) {
+    throw new Error('Missing AIRTABLE_API_KEY environment variable');
+  }
 
-const AIRTABLE_BASE_URL = `https://api.airtable.com/v0/${AIRTABLE_BASE_ID}`;
+  return apiKey;
+}
 
 export function getSourceEnv(): SourceEnv {
   const vercelEnv = process.env.VERCEL_ENV;
@@ -89,7 +98,7 @@ async function airtableFetch<T>(
   path: string,
   options: AirtableRequestOptions = {}
 ): Promise<T> {
-  const url = new URL(`${AIRTABLE_BASE_URL}/${table}${path}`);
+  const url = new URL(`${getAirtableBaseUrl()}/${table}${path}`);
   if (options.searchParams) {
     url.search = options.searchParams.toString();
   }
@@ -97,7 +106,7 @@ async function airtableFetch<T>(
   const { headers, body, cache, next, ...rest } = options;
 
   const mergedHeaders = new Headers({
-    Authorization: `Bearer ${AIRTABLE_API_KEY}`,
+    Authorization: `Bearer ${getAirtableApiKey()}`,
     'Content-Type': 'application/json',
   });
 
@@ -136,7 +145,19 @@ async function airtableFetch<T>(
   }
 
   if (typeof body !== 'undefined') {
-    init.body = typeof body === 'string' ? body : JSON.stringify(body);
+    if (
+      body === null ||
+      typeof body === 'string' ||
+      body instanceof URLSearchParams ||
+      body instanceof FormData ||
+      body instanceof Blob ||
+      body instanceof ArrayBuffer ||
+      ArrayBuffer.isView(body)
+    ) {
+      init.body = body as BodyInit | null;
+    } else {
+      init.body = JSON.stringify(body);
+    }
   }
 
   if (next) {
