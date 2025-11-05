@@ -21,7 +21,7 @@ export default function ResumeLayout({ children }: { children: ReactNode }) {
           履歴書ウィザード
         </h1>
         <p style={{ fontSize: "0.875rem", color: "#6b7280", marginTop: "4px" }}>
-          3ステップで入力・自動保存・復元に対応
+          5ステップで入力・自動保存・復元に対応
         </p>
       </header>
       <main>{children}</main>
