@@ -9,9 +9,9 @@ import {
   updateAirtableRecords,
 } from '../../../../lib/db/airtable';
 
-const TABLE_NAME = process.env.AIRTABLE_TABLE_RESUME ?? 'Resume';
+const TABLE_NAME = process.env.AIRTABLE_TABLE_EDUCATION ?? 'Education';
 
-type ResumeFields = Record<string, unknown>;
+type EducationFields = Record<string, unknown>;
 
 class BadRequestError extends Error {}
 
@@ -124,7 +124,7 @@ export async function GET(req: NextRequest) {
   try {
     const id = req.nextUrl.searchParams.get('id');
     const filterByFormula = id ? `RECORD_ID()='${id}'` : undefined;
-    const records = await listAirtableRecords<ResumeFields>(TABLE_NAME, {
+    const records = await listAirtableRecords<EducationFields>(TABLE_NAME, {
       filterByFormula,
     });
 
@@ -141,7 +141,7 @@ export async function POST(req: NextRequest) {
     });
 
     const records = parseCreateBody(body);
-    const created = await createAirtableRecords<ResumeFields>(TABLE_NAME, records);
+    const created = await createAirtableRecords<EducationFields>(TABLE_NAME, records);
 
     return NextResponse.json({ ok: true, records: created });
   } catch (error) {
@@ -156,7 +156,7 @@ export async function PATCH(req: NextRequest) {
     });
 
     const records = parseUpdateBody(body);
-    const updated = await updateAirtableRecords<ResumeFields>(TABLE_NAME, records);
+    const updated = await updateAirtableRecords<EducationFields>(TABLE_NAME, records);
 
     return NextResponse.json({ ok: true, records: updated });
   } catch (error) {
@@ -171,7 +171,7 @@ export async function PUT(req: NextRequest) {
     });
 
     const records = parseUpdateBody(body);
-    const updated = await updateAirtableRecords<ResumeFields>(TABLE_NAME, records, {
+    const updated = await updateAirtableRecords<EducationFields>(TABLE_NAME, records, {
       replace: true,
     });
 
