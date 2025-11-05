@@ -3,12 +3,26 @@ import { useEffect, useRef, useState } from "react";
 
 export type SaveState = "idle" | "saving" | "saved" | "error";
 
-export function useAutoSave<T>(value: T, save: (v: T) => Promise<void>, debounceMs = 2000) {
+export function useAutoSave<T>(
+  value: T,
+  save: (v: T) => Promise<void>,
+  debounceMs = 2000,
+  options: { enabled?: boolean } = {}
+) {
   const [state, setState] = useState<SaveState>("idle");
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastJson = useRef<string>("");
+  const { enabled = true } = options;
 
   useEffect(() => {
+    if (!enabled) {
+      if (timerRef.current) {
+        clearTimeout(timerRef.current);
+        timerRef.current = null;
+      }
+      return () => undefined;
+    }
+
     const nextJson = JSON.stringify(value);
     if (nextJson === lastJson.current) return;
     lastJson.current = nextJson;
@@ -30,7 +44,7 @@ export function useAutoSave<T>(value: T, save: (v: T) => Promise<void>, debounce
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
     };
-  }, [value, save, debounceMs]);
+  }, [value, save, debounceMs, enabled]);
 
   return state;
 }
