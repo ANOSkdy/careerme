@@ -8,9 +8,7 @@ export const Step1Schema = z.object({
 export type Step1 = z.infer<typeof Step1Schema>;
 
 export const Step2Schema = z.object({
-  status: z.enum(["employed", "seeking", "student", "other"], {
-    required_error: "ステータスは必須です",
-  }),
+  status: z.enum(["employed", "seeking", "student", "other"], "ステータスは必須です"),
   note: z.string().max(200, "200文字以内で入力してください").optional(),
 });
 export type Step2 = z.infer<typeof Step2Schema>;
