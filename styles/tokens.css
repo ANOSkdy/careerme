@@ -1,0 +1,10 @@
+:root{
+  --color-primary:#3A75C4;
+  --color-accent:#E7EB1B;
+  --color-secondary:#B0B0B0;
+  --color-text:#333333;
+  --color-border:#CCCCCC;
+  --color-bg:#FFFFFF;
+  --color-required:#FF4500;
+  --gradient-ai: linear-gradient(to right, #3A75C4, #669EE8);
+}
