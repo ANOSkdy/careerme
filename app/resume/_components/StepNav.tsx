@@ -5,12 +5,14 @@ import type { CSSProperties } from "react";
 export default function StepNav({
   step,
   nextDisabled,
+  totalSteps = 5,
 }: {
-  step: 1 | 2 | 3;
+  step: 1 | 2 | 3 | 4 | 5;
   nextDisabled?: boolean;
+  totalSteps?: number;
 }) {
   const prevHref = step === 1 ? null : `/resume/${step - 1}`;
-  const nextHref = step === 3 ? null : `/resume/${step + 1}`;
+  const nextHref = step >= totalSteps ? null : `/resume/${step + 1}`;
 
   const baseButtonStyle: CSSProperties = {
     padding: "8px 16px",
@@ -55,7 +57,7 @@ export default function StepNav({
       <Link aria-disabled={!prevHref} href={prevHref ?? "#"} style={prevStyle}>
         戻る
       </Link>
-      <div style={{ fontSize: "0.75rem", color: "#9ca3af" }}>Step {step} / 3</div>
+      <div style={{ fontSize: "0.75rem", color: "#9ca3af" }}>Step {step} / {totalSteps}</div>
       <Link aria-disabled={!nextHref || nextDisabled} href={nextHref ?? "#"} style={nextStyle}>
         次へ
       </Link>

@@ -1,7 +1,13 @@
 export const runtime = "nodejs";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { Step1Schema, Step2Schema } from "../../../resume/_schemas/resume";
+import {
+  DesiredSchema,
+  Step1Schema,
+  Step2Schema,
+  WorkItemSchema,
+  WorkListSchema,
+} from "../../../resume/_schemas/resume";
 
 const AIRTABLE_API_KEY = process.env.AIRTABLE_API_KEY;
 const AIRTABLE_BASE_ID = process.env.AIRTABLE_BASE_ID;
@@ -12,6 +18,17 @@ const BodySchema = z.object({
   step: z.union([z.literal(1), z.literal(2)]),
   data: z.unknown(),
 });
+
+const PutSchema = z
+  .object({
+    draftId: z.string().min(1),
+    works: WorkListSchema.optional(),
+    desired: DesiredSchema.optional(),
+  })
+  .refine((value) => typeof value.works !== "undefined" || typeof value.desired !== "undefined", {
+    message: "works または desired のいずれかは必須です",
+    path: ["works"],
+  });
 
 const STEP_SCHEMAS = {
   1: Step1Schema,
@@ -84,21 +101,27 @@ async function findRecordByDraftId(draftId: string) {
   const sanitized = draftId.replace(/'/g, "\\'");
   params.set("filterByFormula", `{draftId}='${sanitized}'`);
   params.set("maxRecords", "1");
-  ["draftId", "step1", "step2"].forEach((field) => params.append("fields[]", field));
+  ["draftId", "step1", "step2", "works", "desired"].forEach((field) =>
+    params.append("fields[]", field)
+  );
   const data = await airtableFetch<AirtableListResponse>(`?${params.toString()}`);
   return data.records?.[0];
 }
 
-function parseStepField<T>(value: unknown, schema: z.ZodSchema<T>) {
+function parseJsonField<T>(value: unknown, schema: z.ZodSchema<T>) {
   if (typeof value !== "string") return null;
   try {
     const parsed = JSON.parse(value);
     const result = schema.safeParse(parsed);
     return result.success ? result.data : null;
   } catch (error) {
-    console.error("Failed to parse step data", error);
+    console.error("Failed to parse JSON field", error);
     return null;
   }
+}
+
+function emptyDesired() {
+  return { roles: [], industries: [], locations: [] };
 }
 
 export async function GET(req: NextRequest) {
@@ -111,15 +134,17 @@ export async function GET(req: NextRequest) {
 
     const record = await findRecordByDraftId(draftId);
     if (!record) {
-      return NextResponse.json({ draftId, step1: null, step2: null });
+      return NextResponse.json({ draftId, step1: null, step2: null, works: null, desired: null });
     }
 
     const fields = record.fields ?? {};
 
     return NextResponse.json({
       draftId,
-      step1: parseStepField(fields.step1, Step1Schema),
-      step2: parseStepField(fields.step2, Step2Schema),
+      step1: parseJsonField(fields.step1, Step1Schema),
+      step2: parseJsonField(fields.step2, Step2Schema),
+      works: parseJsonField(fields.works, z.array(WorkItemSchema)) ?? null,
+      desired: parseJsonField(fields.desired, DesiredSchema),
     });
   } catch (error) {
     console.error(error);
@@ -180,6 +205,61 @@ export async function POST(req: NextRequest) {
       ok: true,
       recordId: created.records?.[0]?.id ?? null,
     });
+  } catch (error) {
+    console.error(error);
+    return NextResponse.json({ error: (error as Error).message }, { status: 500 });
+  }
+}
+
+export async function PUT(req: NextRequest) {
+  try {
+    const json = await req.json();
+    const parsed = PutSchema.safeParse(json);
+    if (!parsed.success) {
+      return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
+    }
+
+    const { draftId, works, desired } = parsed.data;
+    const record = await findRecordByDraftId(draftId);
+    const { source_env, pr_ref } = envTag();
+
+    const fields: Record<string, unknown> = {
+      draftId,
+      source_env,
+      pr_ref,
+      updatedAt: new Date().toISOString(),
+    };
+
+    if (typeof works !== "undefined") {
+      fields.works = JSON.stringify(works ?? []);
+    }
+    if (typeof desired !== "undefined") {
+      fields.desired = JSON.stringify(desired ?? emptyDesired());
+    }
+
+    if (record) {
+      const updated = await airtableFetch<AirtableWriteResponse>(`/${record.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ fields }),
+      });
+      return NextResponse.json({ ok: true, recordId: updated.id ?? record.id });
+    }
+
+    const created = await airtableFetch<AirtableWriteResponse>("", {
+      method: "POST",
+      body: JSON.stringify({
+        records: [
+          {
+            fields: {
+              ...fields,
+              createdAt: new Date().toISOString(),
+            },
+          },
+        ],
+      }),
+    });
+
+    return NextResponse.json({ ok: true, recordId: created.records?.[0]?.id ?? null });
   } catch (error) {
     console.error(error);
     return NextResponse.json({ error: (error as Error).message }, { status: 500 });

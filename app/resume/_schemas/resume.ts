@@ -13,12 +13,6 @@ export const Step2Schema = z.object({
 });
 export type Step2 = z.infer<typeof Step2Schema>;
 
-export type ResumeRecord = {
-  draftId: string;
-  step1?: Step1 | null;
-  step2?: Step2 | null;
-};
-
 const ym = z
   .string()
   .regex(/^[0-9]{4}-[0-9]{2}$/u, "年月はYYYY-MM形式で入力してください");
@@ -42,3 +36,58 @@ export type EducationItem = z.infer<typeof EducationItemSchema>;
 export const EducationListSchema = z
   .array(EducationItemSchema)
   .min(1, "少なくとも1件の学歴を追加してください");
+
+const tagValue = z
+  .string()
+  .trim()
+  .min(1, "1文字以上で入力してください")
+  .max(50, "50文字以内で入力してください");
+
+const tagArray = z.array(tagValue).max(20, "タグは20件までです");
+
+export const WorkItemSchema = z
+  .object({
+    id: z.string().optional(),
+    company: z.string().min(1, "会社名は必須です"),
+    title: z.string().max(120, "120文字以内で入力してください").optional(),
+    startYm: ym,
+    endYm: z.union([ym, z.literal(""), z.undefined()]).optional(),
+    roles: tagArray.default([]),
+    industries: tagArray.default([]),
+    details: z
+      .string()
+      .max(800, "800文字以内で入力してください")
+      .optional(),
+  })
+  .refine(
+    (value) => {
+      if (!value.endYm || value.endYm === "") return true;
+      return value.endYm >= value.startYm;
+    },
+    {
+      path: ["endYm"],
+      message: "終了年月は開始年月以降を入力してください",
+    }
+  );
+
+export type WorkItem = z.infer<typeof WorkItemSchema>;
+
+export const WorkListSchema = z
+  .array(WorkItemSchema)
+  .min(1, "少なくとも1件の職歴を追加してください");
+
+export const DesiredSchema = z.object({
+  roles: tagArray.default([]),
+  industries: tagArray.default([]),
+  locations: tagArray.default([]),
+});
+
+export type Desired = z.infer<typeof DesiredSchema>;
+
+export type ResumeRecord = {
+  draftId: string;
+  step1?: Step1 | null;
+  step2?: Step2 | null;
+  works?: WorkItem[] | null;
+  desired?: Desired | null;
+};
