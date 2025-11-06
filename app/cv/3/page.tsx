@@ -1,5 +1,5 @@
 'use client';
-import { Suspense, useEffect, useMemo, useState, useTransition } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useState, useTransition } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 
@@ -9,6 +9,13 @@ type SummaryPayload = {
   years?: number;
   headlineKeywords?: string[];
   extraNotes?: string;
+};
+
+type ResumeInfo = {
+  selfpr_draft?: string;
+  summary_draft?: string;
+  source_env?: string;
+  pr_ref?: string;
 };
 
 export default function CVStep3() {
@@ -29,16 +36,47 @@ function CVStep3Inner() {
   const [result, setResult] = useState('');
   const [saved, setSaved] = useState<boolean | null>(null);
   const [isPending, startTransition] = useTransition();
+  const [, syncResumeTransition] = useTransition();
+  const [serverState, setServerState] = useState<ResumeInfo>({});
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   useEffect(() => {
     const idFromUrl = params.get('id') || '';
     const ls = typeof window !== 'undefined' ? window.localStorage.getItem('resumeId') : '';
     const nextId = idFromUrl || ls || '';
     if (nextId) {
-      setResumeId(nextId);
+      syncResumeTransition(() => {
+        setResumeId(nextId);
+      });
       if (typeof window !== 'undefined') window.localStorage.setItem('resumeId', nextId);
     }
-  }, [params]);
+  }, [params, syncResumeTransition]);
+
+  const loadFromServer = useCallback(
+    async (idValue?: string) => {
+      const targetId = idValue ?? resumeId;
+      if (!targetId) return;
+      setIsRefreshing(true);
+      try {
+        const res = await fetch(`/api/data/resumes/${encodeURIComponent(targetId)}`);
+        const data = await res.json();
+        if (data?.ok) {
+          setServerState(data.fields || {});
+        } else {
+          setServerState({});
+        }
+      } catch (error) {
+        console.error('Failed to load server data', error);
+      } finally {
+        setIsRefreshing(false);
+      }
+    },
+    [resumeId],
+  );
+
+  useEffect(() => {
+    loadFromServer();
+  }, [loadFromServer]);
 
   const canGenerate = useMemo(() => !!resumeId, [resumeId]);
 
@@ -67,12 +105,14 @@ function CVStep3Inner() {
         if (data?.ok) {
           setResult(data.text || '');
           setSaved(!!data.saved);
+          await loadFromServer(resumeId);
         } else {
           setResult('');
           setSaved(false);
           alert(data?.error?.message || 'Generation failed');
         }
       } catch (error) {
+        console.error(error);
         setResult('');
         setSaved(false);
         alert('Network error');
@@ -82,61 +122,86 @@ function CVStep3Inner() {
 
   return (
     <section>
-      <h2 style={{ fontSize: 18, fontWeight: 700, marginBottom: 8 }}>Step 3 — 職務要約の生成</h2>
+      <h2 className="cv-kicker">Step 3</h2>
       {!resumeId && (
         <p style={{ color: '#b00', marginBottom: 12 }}>
           resumeId が未設定です。<Link href="/cv/1">Step 1</Link> で設定してください。
         </p>
       )}
-      <div style={{ display: 'grid', gap: 8, marginBottom: 12 }}>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <label style={{ minWidth: 120 }}>resumeId</label>
+      <div className="cv-card" style={{ marginBottom: 16 }}>
+        <h3>職務要約の生成</h3>
+        <div className="cv-field">
+          <label className="cv-label">resumeId</label>
           <input
+            className="cv-input"
             value={resumeId}
             onChange={(e) => {
               setResumeId(e.target.value);
               if (typeof window !== 'undefined') window.localStorage.setItem('resumeId', e.target.value);
             }}
             placeholder="recXXXXXXXXXXXXXX"
-            style={{ flex: 1, padding: 8, border: '1px solid #ccc', borderRadius: 6 }}
           />
         </div>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <label style={{ minWidth: 120 }}>Role</label>
-          <input value={role} onChange={(e) => setRole(e.target.value)} style={{ flex: 1, padding: 8, border: '1px solid #ccc', borderRadius: 6 }} />
+        <div className="cv-field">
+          <label className="cv-label">Role</label>
+          <input className="cv-input" value={role} onChange={(e) => setRole(e.target.value)} />
         </div>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <label style={{ minWidth: 120 }}>Years</label>
-          <input type="number" value={years} onChange={(e) => setYears(e.target.value === '' ? '' : Number(e.target.value))} style={{ width: 160, padding: 8, border: '1px solid #ccc', borderRadius: 6 }} />
+        <div className="cv-field">
+          <label className="cv-label">Years</label>
+          <input
+            className="cv-input"
+            type="number"
+            value={years}
+            onChange={(e) => setYears(e.target.value === '' ? '' : Number(e.target.value))}
+          />
         </div>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <label style={{ minWidth: 120 }}>Keywords (comma)</label>
-          <input value={keywords} onChange={(e) => setKeywords(e.target.value)} placeholder="leadership, DX, KPI" style={{ flex: 1, padding: 8, border: '1px solid #ccc', borderRadius: 6 }} />
+        <div className="cv-field">
+          <label className="cv-label">Keywords (comma)</label>
+          <input
+            className="cv-input"
+            value={keywords}
+            onChange={(e) => setKeywords(e.target.value)}
+            placeholder="leadership, DX, KPI"
+          />
         </div>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <label style={{ minWidth: 120, paddingTop: 8 }}>Extra notes</label>
-          <textarea value={extra} onChange={(e) => setExtra(e.target.value)} style={{ flex: 1, minHeight: 72, padding: 8, border: '1px solid #ccc', borderRadius: 6 }} />
+        <div className="cv-field" style={{ alignItems: 'flex-start' }}>
+          <label className="cv-label" style={{ paddingTop: 8 }}>Extra notes</label>
+          <textarea className="cv-textarea" value={extra} onChange={(e) => setExtra(e.target.value)} />
         </div>
-      </div>
-      <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 12 }}>
-        <button
-          onClick={doGenerate}
-          disabled={!canGenerate || isPending}
-          style={{ padding: '10px 14px', borderRadius: 6, border: '1px solid #999', background: '#4A90E2', color: '#fff' }}
-        >
-          {isPending ? 'Generating…' : 'AIで職務要約を生成'}
-        </button>
-        <Link href="/cv/2"><span style={{ padding: '8px 12px', borderRadius: 6, border: '1px solid #999' }}>戻る（Step 2）</span></Link>
+        <div className="cv-row" style={{ marginTop: 16 }}>
+          <button className="cv-btn primary" onClick={doGenerate} disabled={!canGenerate || isPending}>
+            {isPending ? 'Generating…' : 'AIで職務要約を生成'}
+          </button>
+          <Link href="/cv/2">
+            <span className="cv-btn">戻る（Step 2）</span>
+          </Link>
+          <button className="cv-btn ghost" onClick={() => loadFromServer()} disabled={!resumeId || isRefreshing}>
+            {isRefreshing ? '更新中…' : 'サーバから再読込'}
+          </button>
+        </div>
       </div>
       {result && (
-        <div style={{ border: '1px solid #ddd', borderRadius: 8, padding: 12 }}>
-          <div style={{ fontWeight: 700, marginBottom: 6 }}>Result</div>
+        <div className="cv-card" style={{ marginBottom: 16 }}>
+          <h3>生成結果（この画面の反映）</h3>
           <p style={{ whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>{result}</p>
-          <div style={{ marginTop: 8, color: saved ? '#0a0' : '#555' }}>
-            {saved === null ? null : saved ? 'Saved to Airtable (summary_draft)' : 'Not saved (see API response).'}
+          <div style={{ marginTop: 8, color: saved ? '#0a0' : 'var(--cv-muted)' }}>
+            {saved === null
+              ? null
+              : saved
+              ? 'Saved to Airtable (summary_draft)'
+              : 'Not saved (see API response).'}
           </div>
         </div>
       )}
+      <div className="cv-card">
+        <h3>サーバ保存値（検証用）</h3>
+        <p style={{ color: 'var(--cv-muted)', marginTop: 0, marginBottom: 8 }}>
+          env: {serverState.source_env || '-'} / ref: {serverState.pr_ref || '-'}
+        </p>
+        <p style={{ whiteSpace: 'pre-wrap', lineHeight: 1.6, margin: 0 }}>
+          {serverState.summary_draft || '（保存なし）'}
+        </p>
+      </div>
     </section>
   );
 }
