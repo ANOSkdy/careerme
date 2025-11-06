@@ -93,3 +93,12 @@ export const BasicInfoSchema = z.object({
 
 export type BasicInfo = z.infer<typeof BasicInfoSchema>;
 export type DobValue = z.infer<typeof DobSchema>;
+
+export const BasicInfoPartialSchema = z.object({
+  lastName: requiredName("姓を入力してください").optional(),
+  firstName: requiredName("名を入力してください").optional(),
+  dob: DobSchema.partial().optional(),
+  gender: z.enum(["male", "female", "none"]).optional(),
+});
+
+export type BasicInfoPartial = z.infer<typeof BasicInfoPartialSchema>;

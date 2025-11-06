@@ -3,11 +3,13 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ChangeEvent, CSSProperties, FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import type { BasicInfo } from "../../../lib/validation/schemas";
-import { BasicInfoSchema } from "../../../lib/validation/schemas";
+import type { BasicInfo, BasicInfoPartial } from "../../../lib/validation/schemas";
+import {
+  BasicInfoPartialSchema,
+  BasicInfoSchema,
+} from "../../../lib/validation/schemas";
 
 const STORAGE_KEY = "resume.resumeId";
-const BasicInfoPartialSchema = BasicInfoSchema.deepPartial();
 
 const genderOptions: { value: BasicInfo["gender"]; label: string }[] = [
   { value: "male", label: "男性" },
@@ -71,7 +73,7 @@ function formFromBasicInfo(value: BasicInfo): FormState {
   };
 }
 
-function formFromPartialBasicInfo(value: Partial<BasicInfo>): FormState {
+function formFromPartialBasicInfo(value: BasicInfoPartial): FormState {
   return {
     lastName: value.lastName ?? "",
     firstName: value.firstName ?? "",
