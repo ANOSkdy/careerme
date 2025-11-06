@@ -1,5 +1,5 @@
 'use client';
-import { useEffect, useMemo, useState, useTransition } from 'react';
+import { Suspense, useEffect, useMemo, useState, useTransition } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 
@@ -14,6 +14,14 @@ type SelfPrPayload = {
 };
 
 export default function CVStep2() {
+  return (
+    <Suspense fallback={<section>読み込み中...</section>}>
+      <CVStep2Inner />
+    </Suspense>
+  );
+}
+
+function CVStep2Inner() {
   const params = useSearchParams();
   const [resumeId, setResumeId] = useState('');
   const [role, setRole] = useState('');

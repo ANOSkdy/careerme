@@ -1,9 +1,17 @@
 'use client';
-import { useEffect, useMemo, useState } from 'react';
+import { Suspense, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 
 export default function CVStep1() {
+  return (
+    <Suspense fallback={<section>読み込み中...</section>}>
+      <CVStep1Inner />
+    </Suspense>
+  );
+}
+
+function CVStep1Inner() {
   const params = useSearchParams();
   const [resumeId, setResumeId] = useState('');
   const idFromUrl = params.get('id') || '';
