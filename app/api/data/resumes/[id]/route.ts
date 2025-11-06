@@ -1,3 +1,5 @@
+import { NextRequest } from 'next/server';
+
 export const runtime = 'nodejs';
 
 type ResumeFields = {
@@ -12,8 +14,12 @@ type AirtableRecord = {
   fields: ResumeFields;
 };
 
-export async function GET(_req: Request, ctx: { params: { id?: string } }) {
-  const id = ctx?.params?.id;
+type RouteContext = {
+  params: Promise<{ id: string }>;
+};
+
+export async function GET(_req: NextRequest, context: RouteContext) {
+  const { id } = await context.params;
   if (!id) {
     return json({ ok: false, error: { message: 'id is required' } }, 400);
   }
