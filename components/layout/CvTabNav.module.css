@@ -1,8 +1,8 @@
 .nav {
-  border-bottom: 1px solid var(--color-border);
+  border-bottom: 1px solid rgba(204, 204, 204, 0.65);
   display: flex;
-  gap: 1rem;
-  padding-bottom: 0.25rem;
+  gap: 1.25rem;
+  padding-bottom: 0.5rem;
 }
 
 .tab {
@@ -10,10 +10,10 @@
   border-bottom: 2px solid transparent;
   color: var(--color-text);
   display: inline-flex;
-  font-size: 1rem;
+  font-size: 1.05rem;
   font-weight: 600;
-  gap: 0.25rem;
-  padding: 0.5rem 0.25rem;
+  letter-spacing: 0.01em;
+  padding: 0.75rem 0.25rem 0.5rem;
   position: relative;
   text-decoration: none;
   transition: border-color 0.2s ease, color 0.2s ease;
@@ -40,7 +40,7 @@
   }
 
   .tab {
-    padding: 0.5rem 0.15rem;
+    padding: 0.75rem 0.15rem 0.5rem;
     white-space: nowrap;
   }
 }

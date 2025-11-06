@@ -1,31 +1,39 @@
 .wrapper {
-  background: linear-gradient(180deg, rgba(58, 117, 196, 0.08), rgba(255, 255, 255, 0.9));
+  background: linear-gradient(180deg, rgba(58, 117, 196, 0.08), rgba(255, 255, 255, 0.92));
   min-height: 100vh;
-  padding: 3rem 1rem 4rem;
+  padding: 3.5rem 1.25rem 4.5rem;
 }
 
 .card {
   background-color: var(--color-bg);
-  border: 1px solid var(--color-border);
+  border: 1px solid rgba(204, 204, 204, 0.7);
   border-radius: 0.75rem;
-  box-shadow: 0 18px 40px rgba(29, 41, 57, 0.08);
+  box-shadow: 0 26px 60px rgba(35, 64, 104, 0.14);
   margin: 0 auto;
-  max-width: 760px;
-  padding: 1.75rem 1.5rem 2rem;
+  max-width: 780px;
+  padding: 2rem 2.25rem 2.5rem;
   width: 100%;
 }
 
 .header {
-  align-items: center;
+  align-items: flex-start;
+  border-bottom: 1px solid rgba(204, 204, 204, 0.65);
   display: flex;
-  gap: 1.25rem;
+  gap: 1.5rem;
   justify-content: space-between;
   margin-bottom: 1.25rem;
+  padding-bottom: 1.25rem;
+}
+
+.heading {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
 }
 
 .title {
   color: var(--color-text);
-  font-size: 1.75rem;
+  font-size: 1.875rem;
   font-weight: 700;
   letter-spacing: -0.01em;
   line-height: 1.2;
@@ -34,16 +42,16 @@
 
 .content {
   color: var(--color-text);
-  margin-top: 1.5rem;
+  margin-top: 1.75rem;
 }
 
 @media (max-width: 640px) {
   .wrapper {
-    padding: 2rem 0.75rem 3rem;
+    padding: 2.5rem 1rem 3.25rem;
   }
 
   .card {
-    padding: 1.5rem 1.25rem 1.75rem;
+    padding: 1.5rem 1.25rem 2rem;
   }
 
   .header {

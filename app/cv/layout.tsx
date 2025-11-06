@@ -9,12 +9,14 @@ export const metadata: Metadata = {
   title: 'CV Wizard',
 };
 
-export default function CvLayout({ children }: { children: ReactNode }) {
+export default function Layout({ children }: { children: ReactNode }) {
   return (
     <div className={styles.wrapper}>
       <div className={styles.card}>
         <header className={styles.header}>
-          <h1 className={styles.title}>CV Wizard</h1>
+          <div className={styles.heading}>
+            <h1 className={styles.title}>CV Wizard</h1>
+          </div>
           <IdBadge />
         </header>
         <CvTabNav />

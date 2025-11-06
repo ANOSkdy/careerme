@@ -16,7 +16,9 @@ export default function CvTabNav() {
   return (
     <nav className={styles.nav} role="tablist" aria-label="CV セクション">
       {tabs.map((tab) => {
-        const isActive = pathname === tab.href;
+        const isActive =
+          pathname === tab.href ||
+          (pathname?.startsWith(`${tab.href}/`) ?? false);
         return (
           <Link
             key={tab.href}
