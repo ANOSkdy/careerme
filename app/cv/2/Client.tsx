@@ -201,7 +201,12 @@ export default function Step2Client() {
           <textarea className="cv-textarea" value={extra} onChange={(e) => setExtra(e.target.value)} />
         </div>
         <div className="cv-row" style={{ marginTop: 16 }}>
-          <button className="cv-btn primary" onClick={doGenerate} disabled={!canGenerate || isPending}>
+          <button
+            className="cv-btn"
+            variant="ai"
+            onClick={doGenerate}
+            disabled={!canGenerate || isPending}
+          >
             {isPending ? 'Generating…' : 'AIで自己PRを生成'}
           </button>
           <Link href={resumeId ? { pathname: '/cv/3', query: { id: resumeId } } : '/cv/3'}>
