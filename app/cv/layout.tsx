@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import IdBadge from './IdBadge';
 
 export const metadata: Metadata = {
   title: 'CV Wizard',
@@ -8,10 +9,13 @@ export default function CvLayout({ children }: { children: React.ReactNode }) {
   return (
     <div className="cv-shell">
       <header className="cv-header">
-        <h1>CV Wizard</h1>
+        <div className="cv-header-row">
+          <h1>CV Wizard</h1>
+          <IdBadge />
+        </div>
         <nav className="cv-nav" aria-label="Steps">
-          <a href="/cv/2">Step 2: 自己PR</a>
-          <a href="/cv/3">Step 3: 要約</a>
+          <a href="/cv/2">自己PR</a>
+          <a href="/cv/3">要約</a>
         </nav>
       </header>
       <main className="cv-main">{children}</main>
@@ -29,7 +33,8 @@ export default function CvLayout({ children }: { children: React.ReactNode }) {
         }
         .cv-shell{min-height:100vh;background:var(--cv-bg);color:var(--cv-text);}
         .cv-header{max-width:960px;margin:0 auto;padding:20px 16px 8px;}
-        .cv-header h1{font-size:24px;font-weight:800;margin:0 0 8px;}
+        .cv-header h1{font-size:24px;font-weight:800;margin:0;}
+        .cv-header-row{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:8px}
         .cv-nav{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:6px}
         .cv-nav a{color:var(--cv-primary);text-decoration:underline}
         .cv-main{max-width:960px;margin:0 auto;padding:16px}
@@ -57,7 +62,9 @@ export default function CvLayout({ children }: { children: React.ReactNode }) {
           box-shadow:0 2px 10px rgba(0,0,0,.04)
         }
         .cv-card h3{font-weight:700;margin:0 0 6px}
-        .cv-kicker{color:var(--cv-muted);font-size:12px;margin-bottom:8px;text-transform:uppercase;letter-spacing:0.08em}
+        .cv-kicker{color:var(--cv-muted);font-size:12px;margin-bottom:8px;letter-spacing:0.08em}
+        .cv-meta{margin-left:auto;display:flex;gap:8px;align-items:center;color:var(--cv-muted);font-size:12px;white-space:nowrap}
+        .cv-chip{display:inline-flex;align-items:center;border:1px solid var(--cv-border);background:#fff;padding:4px 10px;border-radius:999px}
       `}</style>
     </div>
   );
