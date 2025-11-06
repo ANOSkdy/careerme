@@ -39,15 +39,28 @@ export default function Step2Client() {
 
   useEffect(() => {
     const idFromUrl = params.get('id') || '';
-    const ls = typeof window !== 'undefined' ? window.localStorage.getItem('resumeId') : '';
-    const nextId = idFromUrl || ls || '';
-    if (nextId) {
-      syncResumeTransition(() => {
-        setResumeId(nextId);
-      });
-      if (typeof window !== 'undefined') window.localStorage.setItem('resumeId', nextId);
+    const ls = typeof window !== 'undefined' ? window.localStorage.getItem('resumeId') || '' : '';
+    const nextId = idFromUrl || ls;
+    syncResumeTransition(() => {
+      setResumeId(nextId);
+    });
+    if (typeof window !== 'undefined') {
+      if (nextId) {
+        window.localStorage.setItem('resumeId', nextId);
+      } else {
+        window.localStorage.removeItem('resumeId');
+      }
+      window.dispatchEvent(new CustomEvent('resumeId-change', { detail: nextId }));
     }
   }, [params, syncResumeTransition]);
+
+  useEffect(() => {
+    if (!resumeId) {
+      setServerState({});
+      setResult('');
+      setSaved(null);
+    }
+  }, [resumeId]);
 
   const loadFromServer = useCallback(
     async (idValue?: string) => {
@@ -121,7 +134,7 @@ export default function Step2Client() {
 
   return (
     <section>
-      <h2 className="cv-kicker">Step 2</h2>
+      <h2 className="cv-kicker">自己PR</h2>
       {!resumeId && (
         <p style={{ color: '#b00', marginBottom: 12 }}>
           resumeId が未設定です。上のフィールドに入力してください。
@@ -135,8 +148,16 @@ export default function Step2Client() {
             className="cv-input"
             value={resumeId}
             onChange={(e) => {
-              setResumeId(e.target.value);
-              if (typeof window !== 'undefined') window.localStorage.setItem('resumeId', e.target.value);
+              const value = e.target.value;
+              setResumeId(value);
+              if (typeof window !== 'undefined') {
+                if (value) {
+                  window.localStorage.setItem('resumeId', value);
+                } else {
+                  window.localStorage.removeItem('resumeId');
+                }
+                window.dispatchEvent(new CustomEvent('resumeId-change', { detail: value }));
+              }
             }}
             placeholder="recXXXXXXXXXXXXXX"
           />
@@ -184,7 +205,7 @@ export default function Step2Client() {
             {isPending ? 'Generating…' : 'AIで自己PRを生成'}
           </button>
           <Link href={resumeId ? { pathname: '/cv/3', query: { id: resumeId } } : '/cv/3'}>
-            <span className="cv-btn">次へ（Step 3）</span>
+            <span className="cv-btn">次へ（要約）</span>
           </Link>
           <button className="cv-btn ghost" onClick={() => loadFromServer()} disabled={!resumeId || isRefreshing}>
             {isRefreshing ? '更新中…' : 'サーバから再読込'}

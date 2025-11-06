@@ -35,15 +35,28 @@ export default function Step3Client() {
 
   useEffect(() => {
     const idFromUrl = params.get('id') || '';
-    const ls = typeof window !== 'undefined' ? window.localStorage.getItem('resumeId') : '';
-    const nextId = idFromUrl || ls || '';
-    if (nextId) {
-      syncResumeTransition(() => {
-        setResumeId(nextId);
-      });
-      if (typeof window !== 'undefined') window.localStorage.setItem('resumeId', nextId);
+    const ls = typeof window !== 'undefined' ? window.localStorage.getItem('resumeId') || '' : '';
+    const nextId = idFromUrl || ls;
+    syncResumeTransition(() => {
+      setResumeId(nextId);
+    });
+    if (typeof window !== 'undefined') {
+      if (nextId) {
+        window.localStorage.setItem('resumeId', nextId);
+      } else {
+        window.localStorage.removeItem('resumeId');
+      }
+      window.dispatchEvent(new CustomEvent('resumeId-change', { detail: nextId }));
     }
   }, [params, syncResumeTransition]);
+
+  useEffect(() => {
+    if (!resumeId) {
+      setServerState({});
+      setResult('');
+      setSaved(null);
+    }
+  }, [resumeId]);
 
   const loadFromServer = useCallback(
     async (idValue?: string) => {
@@ -115,7 +128,7 @@ export default function Step3Client() {
 
   return (
     <section>
-      <h2 className="cv-kicker">Step 3</h2>
+      <h2 className="cv-kicker">要約</h2>
       {!resumeId && (
         <p style={{ color: '#b00', marginBottom: 12 }}>
           resumeId が未設定です。上のフィールドに入力してください。
@@ -129,8 +142,16 @@ export default function Step3Client() {
             className="cv-input"
             value={resumeId}
             onChange={(e) => {
-              setResumeId(e.target.value);
-              if (typeof window !== 'undefined') window.localStorage.setItem('resumeId', e.target.value);
+              const value = e.target.value;
+              setResumeId(value);
+              if (typeof window !== 'undefined') {
+                if (value) {
+                  window.localStorage.setItem('resumeId', value);
+                } else {
+                  window.localStorage.removeItem('resumeId');
+                }
+                window.dispatchEvent(new CustomEvent('resumeId-change', { detail: value }));
+              }
             }}
             placeholder="recXXXXXXXXXXXXXX"
           />
@@ -166,7 +187,7 @@ export default function Step3Client() {
             {isPending ? 'Generating…' : 'AIで職務要約を生成'}
           </button>
           <Link href={resumeId ? { pathname: '/cv/2', query: { id: resumeId } } : '/cv/2'}>
-            <span className="cv-btn">戻る（Step 2）</span>
+            <span className="cv-btn">戻る（自己PR）</span>
           </Link>
           <button className="cv-btn ghost" onClick={() => loadFromServer()} disabled={!resumeId || isRefreshing}>
             {isRefreshing ? '更新中…' : 'サーバから再読込'}
