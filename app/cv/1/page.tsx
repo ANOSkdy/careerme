@@ -1,5 +1,7 @@
-import Step1Client from './Client';
+import { redirect } from 'next/navigation';
+
+export const dynamic = 'force-static';
 
 export default function Page() {
-  return <Step1Client />;
+  redirect('/cv/2');
 }
