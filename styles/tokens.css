@@ -7,4 +7,12 @@
   --color-bg:#FFFFFF;
   --color-required:#FF4500;
   --gradient-ai: linear-gradient(to right, #3A75C4, #669EE8);
+  --container-max:480px;
+  --container-pad:clamp(16px, 4vw, 24px);
+}
+
+@media (min-width: 1024px){
+  :root{
+    --container-max:720px;
+  }
 }
