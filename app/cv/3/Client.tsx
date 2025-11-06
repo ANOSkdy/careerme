@@ -12,13 +12,6 @@ type SummaryPayload = {
   extraNotes?: string;
 };
 
-type ResumeInfo = {
-  selfpr_draft?: string;
-  summary_draft?: string;
-  source_env?: string;
-  pr_ref?: string;
-};
-
 export default function Step3Client() {
   const params = useSearchParams();
   const [resumeId, setResumeId] = useState('');
@@ -30,7 +23,6 @@ export default function Step3Client() {
   const [saved, setSaved] = useState<boolean | null>(null);
   const [isPending, startTransition] = useTransition();
   const [, syncResumeTransition] = useTransition();
-  const [serverState, setServerState] = useState<ResumeInfo>({});
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   useEffect(() => {
@@ -52,7 +44,6 @@ export default function Step3Client() {
 
   useEffect(() => {
     if (!resumeId) {
-      setServerState({});
       setResult('');
       setSaved(null);
     }
@@ -67,9 +58,13 @@ export default function Step3Client() {
         const res = await fetch(`/api/data/resumes/${encodeURIComponent(targetId)}`);
         const data = await res.json();
         if (data?.ok) {
-          setServerState(data.fields || {});
-        } else {
-          setServerState({});
+          const serverDraft: string = data.fields?.summary_draft || '';
+          setResult(serverDraft);
+          setSaved((prev) => {
+            if (serverDraft) return true;
+            if (prev === true) return null;
+            return prev;
+          });
         }
       } catch (error) {
         console.error('Failed to load server data', error);
@@ -207,15 +202,6 @@ export default function Step3Client() {
           </div>
         </div>
       )}
-      <div className="cv-card">
-        <h3>サーバ保存値（検証用）</h3>
-        <p style={{ color: 'var(--cv-muted)', marginTop: 0, marginBottom: 8 }}>
-          env: {serverState.source_env || '-'} / ref: {serverState.pr_ref || '-'}
-        </p>
-        <p style={{ whiteSpace: 'pre-wrap', lineHeight: 1.6, margin: 0 }}>
-          {serverState.summary_draft || '（保存なし）'}
-        </p>
-      </div>
     </section>
   );
 }

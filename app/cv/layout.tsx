@@ -32,12 +32,13 @@ export default function CvLayout({ children }: { children: React.ReactNode }) {
           --cv-radius:16px;
         }
         .cv-shell{min-height:100vh;background:var(--cv-bg);color:var(--cv-text);}
-        .cv-header{max-width:960px;margin:0 auto;padding:20px 16px 8px;}
+        /* Follow homepage container spacing if provided; fallback to 960/16 */
+        .cv-header{max-width:var(--container-max, 960px);margin:0 auto;padding:20px var(--container-pad, 16px) 8px;}
         .cv-header h1{font-size:24px;font-weight:800;margin:0;}
         .cv-header-row{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:8px}
         .cv-nav{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:6px}
         .cv-nav a{color:var(--cv-primary);text-decoration:underline}
-        .cv-main{max-width:960px;margin:0 auto;padding:16px}
+        .cv-main{max-width:var(--container-max, 960px);margin:0 auto;padding:var(--container-pad, 16px)}
         /* Atoms */
         .cv-field{display:flex;gap:10px;align-items:center}
         .cv-field+.cv-field{margin-top:10px}
