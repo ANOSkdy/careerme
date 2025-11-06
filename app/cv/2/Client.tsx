@@ -202,7 +202,7 @@ export default function Step2Client() {
         </div>
         <div className="cv-row" style={{ marginTop: 16 }}>
           <button
-            className="cv-btn primary"
+            className="cv-btn"
             variant="ai"
             onClick={doGenerate}
             disabled={!canGenerate || isPending}
