@@ -79,7 +79,7 @@ export default function Step2Client() {
 
   const doGenerate = () => {
     if (!resumeId) {
-      alert('resumeId is required. Set it on Step 1.');
+      alert('resumeId is required. 上のフィールドに入力してください。');
       return;
     }
     const payload: SelfPrPayload = {
@@ -124,7 +124,7 @@ export default function Step2Client() {
       <h2 className="cv-kicker">Step 2</h2>
       {!resumeId && (
         <p style={{ color: '#b00', marginBottom: 12 }}>
-          resumeId が未設定です。<Link href="/cv/1">Step 1</Link> で設定してください。
+          resumeId が未設定です。上のフィールドに入力してください。
         </p>
       )}
       <div className="cv-card" style={{ marginBottom: 16 }}>
@@ -183,7 +183,7 @@ export default function Step2Client() {
           <button className="cv-btn primary" onClick={doGenerate} disabled={!canGenerate || isPending}>
             {isPending ? 'Generating…' : 'AIで自己PRを生成'}
           </button>
-          <Link href="/cv/3">
+          <Link href={resumeId ? { pathname: '/cv/3', query: { id: resumeId } } : '/cv/3'}>
             <span className="cv-btn">次へ（Step 3）</span>
           </Link>
           <button className="cv-btn ghost" onClick={() => loadFromServer()} disabled={!resumeId || isRefreshing}>

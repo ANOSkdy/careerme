@@ -75,7 +75,7 @@ export default function Step3Client() {
 
   const doGenerate = () => {
     if (!resumeId) {
-      alert('resumeId is required. Set it on Step 1.');
+      alert('resumeId is required. 上のフィールドに入力してください。');
       return;
     }
     const payload: SummaryPayload = {
@@ -118,7 +118,7 @@ export default function Step3Client() {
       <h2 className="cv-kicker">Step 3</h2>
       {!resumeId && (
         <p style={{ color: '#b00', marginBottom: 12 }}>
-          resumeId が未設定です。<Link href="/cv/1">Step 1</Link> で設定してください。
+          resumeId が未設定です。上のフィールドに入力してください。
         </p>
       )}
       <div className="cv-card" style={{ marginBottom: 16 }}>
@@ -165,7 +165,7 @@ export default function Step3Client() {
           <button className="cv-btn primary" onClick={doGenerate} disabled={!canGenerate || isPending}>
             {isPending ? 'Generating…' : 'AIで職務要約を生成'}
           </button>
-          <Link href="/cv/2">
+          <Link href={resumeId ? { pathname: '/cv/2', query: { id: resumeId } } : '/cv/2'}>
             <span className="cv-btn">戻る（Step 2）</span>
           </Link>
           <button className="cv-btn ghost" onClick={() => loadFromServer()} disabled={!resumeId || isRefreshing}>

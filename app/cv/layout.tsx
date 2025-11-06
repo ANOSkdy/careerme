@@ -10,7 +10,6 @@ export default function CvLayout({ children }: { children: React.ReactNode }) {
       <header className="cv-header">
         <h1>CV Wizard</h1>
         <nav className="cv-nav" aria-label="Steps">
-          <a href="/cv/1">Step 1: Q&amp;A</a>
           <a href="/cv/2">Step 2: 自己PR</a>
           <a href="/cv/3">Step 3: 要約</a>
         </nav>
