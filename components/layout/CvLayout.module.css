@@ -121,7 +121,9 @@
   box-shadow: none;
 }
 
-:global(.cv-btn.primary) {
+:global(.cv-btn.primary),
+:global(.cv-btn[variant='ai']),
+:global(.cv-btn[data-variant='ai']) {
   background: var(--gradient-ai);
   border-color: transparent;
   color: #ffffff;

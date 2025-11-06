@@ -183,7 +183,12 @@ export default function Step3Client() {
           <textarea className="cv-textarea" value={extra} onChange={(e) => setExtra(e.target.value)} />
         </div>
         <div className="cv-row" style={{ marginTop: 16 }}>
-          <button className="cv-btn primary" onClick={doGenerate} disabled={!canGenerate || isPending}>
+          <button
+            className="cv-btn primary"
+            variant="ai"
+            onClick={doGenerate}
+            disabled={!canGenerate || isPending}
+          >
             {isPending ? 'Generating…' : 'AIで職務要約を生成'}
           </button>
           <Link href={resumeId ? { pathname: '/cv/2', query: { id: resumeId } } : '/cv/2'}>
