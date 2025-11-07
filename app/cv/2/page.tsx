@@ -1,8 +1,8 @@
-import Step2Client from './Client';
+import PRWizard from './PRWizard';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
 
 export default function Page() {
-  return <Step2Client />;
+  return <PRWizard />;
 }
