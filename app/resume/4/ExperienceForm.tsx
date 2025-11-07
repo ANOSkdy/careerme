@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   useCallback,
@@ -16,6 +15,7 @@ import { z } from "zod";
 
 import AutoSaveBadge from "../_components/AutoSaveBadge";
 import type { SaveState } from "../_components/hooks/useAutoSave";
+import StepNav from "../_components/StepNav";
 import {
   ExperienceListSchema,
   ResumeSchema,
@@ -988,47 +988,7 @@ export default function ExperienceForm() {
         <AutoSaveBadge state={certificationSaveState} />
       </section>
 
-      <div
-        style={{
-          marginTop: "24px",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          gap: "12px",
-        }}
-      >
-        <Link
-          href="/resume/3"
-          style={{
-            padding: "8px 16px",
-            borderRadius: "8px",
-            fontSize: "0.875rem",
-            border: "1px solid #d1d5db",
-            backgroundColor: "#ffffff",
-            color: "#1f2937",
-            textDecoration: "none",
-          }}
-        >
-          戻る
-        </Link>
-        <div style={{ fontSize: "0.75rem", color: "#9ca3af" }}>Step 4 / 5</div>
-        <button
-          type="submit"
-          disabled={isNextDisabled}
-          style={{
-            padding: "8px 16px",
-            borderRadius: "8px",
-            fontSize: "0.875rem",
-            border: "1px solid var(--color-primary, #4A90E2)",
-            backgroundColor: "var(--color-primary, #4A90E2)",
-            color: "#ffffff",
-            opacity: isNextDisabled ? 0.5 : 1,
-            cursor: isNextDisabled ? "not-allowed" : "pointer",
-          }}
-        >
-          次へ
-        </button>
-      </div>
+      <StepNav step={4} nextType="submit" nextDisabled={isNextDisabled} />
     </form>
   );
 }

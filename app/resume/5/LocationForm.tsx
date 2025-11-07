@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   useCallback,
@@ -18,6 +17,7 @@ import AutoSaveBadge from "../_components/AutoSaveBadge";
 import TagInput from "../_components/TagInput";
 import { useAutoSave } from "../_components/hooks/useAutoSave";
 import { DesiredSchema } from "../_schemas/resume";
+import StepNav from "../_components/StepNav";
 
 type Option = { value: string; label: string };
 
@@ -657,48 +657,12 @@ export default function LocationForm() {
         <AutoSaveBadge state={desiredAutoSaveState} />
       </div>
 
-      <div
-        style={{
-          marginTop: "32px",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          gap: "12px",
-        }}
-      >
-        <Link
-          href="/resume/4"
-          style={{
-            padding: "10px 16px",
-            borderRadius: "8px",
-            fontSize: "0.875rem",
-            border: "1px solid #d1d5db",
-            backgroundColor: "#ffffff",
-            color: "#1f2937",
-            textDecoration: "none",
-            display: "inline-block",
-          }}
-        >
-          戻る
-        </Link>
-        <button
-          type="submit"
-          disabled={nextDisabled}
-          style={{
-            padding: "10px 20px",
-            borderRadius: "8px",
-            fontSize: "0.875rem",
-            border: "1px solid var(--color-primary, #4A90E2)",
-            backgroundColor: "var(--color-primary, #4A90E2)",
-            color: "#ffffff",
-            opacity: nextDisabled ? 0.5 : 1,
-            cursor: nextDisabled ? "not-allowed" : "pointer",
-            transition: "opacity 0.2s ease", 
-          }}
-        >
-          {isSubmitting ? "保存中..." : "次へ"}
-        </button>
-      </div>
+      <StepNav
+        step={5}
+        nextType="submit"
+        nextDisabled={nextDisabled}
+        nextLabel={isSubmitting ? "保存中..." : "次へ"}
+      />
     </form>
   );
 }
