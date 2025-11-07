@@ -176,13 +176,14 @@ export default function LocationForm() {
 
   useEffect(() => {
     if (!resumeId) return;
+    const id = resumeId;
     let cancelled = false;
     const controller = new AbortController();
 
     async function loadPreferredLocation() {
       try {
         setLoadError(null);
-        const params = new URLSearchParams({ id: resumeId, draftId: resumeId });
+        const params = new URLSearchParams({ id, draftId: id });
         const res = await fetch(`/api/data/resume?${params.toString()}`, {
           cache: "no-store",
           signal: controller.signal,
