@@ -42,6 +42,11 @@ export default function PdfActions() {
             display: revert !important;
           }
 
+          #cv-print-root [data-print-hidden='true'],
+          #cv-print-root [data-print-hidden='true'] * {
+            display: none !important;
+          }
+
           #cv-print-root {
             position: static !important;
             width: 100%;
