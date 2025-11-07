@@ -4,29 +4,24 @@ import { useCallback, useEffect, useState, useTransition } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 
-type ResumeInfo = {
-  selfpr_draft?: string;
-  summary_draft?: string;
-  source_env?: string;
-  pr_ref?: string;
-};
-
 export default function Step3Client() {
   const params = useSearchParams();
   const [resumeId, setResumeId] = useState('');
   const [result, setResult] = useState('');
   const [saved, setSaved] = useState<boolean | null>(null);
   const [isPending, startTransition] = useTransition();
-  const [, syncResumeTransition] = useTransition();
-  const [serverState, setServerState] = useState<ResumeInfo>({});
-  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [, startUiTransition] = useTransition();
 
   useEffect(() => {
     const idFromUrl = params.get('id') || '';
     const ls = typeof window !== 'undefined' ? window.localStorage.getItem('resumeId') || '' : '';
     const nextId = idFromUrl || ls;
-    syncResumeTransition(() => {
+    startUiTransition(() => {
       setResumeId(nextId);
+      if (!nextId) {
+        setResult('');
+        setSaved(null);
+      }
     });
     if (typeof window !== 'undefined') {
       if (nextId) {
@@ -36,38 +31,27 @@ export default function Step3Client() {
       }
       window.dispatchEvent(new CustomEvent('resumeId-change', { detail: nextId }));
     }
-  }, [params, syncResumeTransition]);
-
-  useEffect(() => {
-    if (!resumeId) {
-      setServerState({});
-      setResult('');
-      setSaved(null);
-    }
-  }, [resumeId]);
+  }, [params, startUiTransition]);
 
   const loadFromServer = useCallback(
     async (idValue?: string) => {
       const targetId = idValue ?? resumeId;
       if (!targetId) return;
-      setIsRefreshing(true);
       try {
         const res = await fetch(`/api/data/resumes/${encodeURIComponent(targetId)}`);
         const data = await res.json();
-        if (data?.ok) {
-          setServerState(data.fields || {});
-          setResult(data.fields?.summary_draft || '');
-        } else {
-          setServerState({});
-          setResult('');
-        }
+        startUiTransition(() => {
+          if (data?.ok) {
+            setResult(data.fields?.summary_draft || '');
+          } else {
+            setResult('');
+          }
+        });
       } catch (error) {
         console.error('Failed to load server data', error);
-      } finally {
-        setIsRefreshing(false);
       }
     },
-    [resumeId],
+    [resumeId, startUiTransition],
   );
 
   useEffect(() => {
@@ -152,23 +136,7 @@ export default function Step3Client() {
               <Link href={resumeId ? { pathname: '/cv/2', query: { id: resumeId } } : '/cv/2'}>
                 <span className="cv-btn">戻る（自己PR）</span>
               </Link>
-              <button
-                className="cv-btn ghost"
-                onClick={() => loadFromServer()}
-                disabled={!resumeId || isRefreshing}
-              >
-                {isRefreshing ? '更新中…' : 'サーバから再読込'}
-              </button>
             </div>
-          </div>
-          <div className="cv-card">
-            <h3>サーバ保存値（検証用）</h3>
-            <p style={{ color: 'var(--cv-muted)', marginTop: 0, marginBottom: 8 }}>
-              env: {serverState.source_env || '-'} / ref: {serverState.pr_ref || '-'}
-            </p>
-            <p style={{ whiteSpace: 'pre-wrap', lineHeight: 1.6, margin: 0 }}>
-              {serverState.summary_draft || '（保存なし）'}
-            </p>
           </div>
         </div>
         <div className="cv-card summary-preview">
