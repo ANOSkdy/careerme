@@ -8,15 +8,21 @@ import {
   WorkItemSchema,
   WorkListSchema,
 } from "../../../resume/_schemas/resume";
+import { ResumeSchema } from "../../../../lib/validation/schemas";
 
 const AIRTABLE_API_KEY = process.env.AIRTABLE_API_KEY;
 const AIRTABLE_BASE_ID = process.env.AIRTABLE_BASE_ID;
 const TABLE_NAME = "Resumes";
 
-const BodySchema = z.object({
+const StepBodySchema = z.object({
   draftId: z.string().min(1),
   step: z.union([z.literal(1), z.literal(2)]),
   data: z.unknown(),
+});
+
+const CertificationsBodySchema = z.object({
+  id: z.string().min(1),
+  certifications: ResumeSchema.shape.certifications.default([]),
 });
 
 const PutSchema = z
@@ -24,11 +30,18 @@ const PutSchema = z
     draftId: z.string().min(1),
     works: WorkListSchema.optional(),
     desired: DesiredSchema.optional(),
+    certifications: ResumeSchema.shape.certifications.optional(),
   })
-  .refine((value) => typeof value.works !== "undefined" || typeof value.desired !== "undefined", {
-    message: "works または desired のいずれかは必須です",
-    path: ["works"],
-  });
+  .refine(
+    (value) =>
+      typeof value.works !== "undefined" ||
+      typeof value.desired !== "undefined" ||
+      typeof value.certifications !== "undefined",
+    {
+      message: "works・desired・certifications のいずれかは必須です",
+      path: ["works"],
+    }
+  );
 
 const STEP_SCHEMAS = {
   1: Step1Schema,
@@ -101,7 +114,7 @@ async function findRecordByDraftId(draftId: string) {
   const sanitized = draftId.replace(/'/g, "\\'");
   params.set("filterByFormula", `{draftId}='${sanitized}'`);
   params.set("maxRecords", "1");
-  ["draftId", "step1", "step2", "works", "desired"].forEach((field) =>
+  ["draftId", "step1", "step2", "works", "desired", "certifications"].forEach((field) =>
     params.append("fields[]", field)
   );
   const data = await airtableFetch<AirtableListResponse>(`?${params.toString()}`);
@@ -134,7 +147,14 @@ export async function GET(req: NextRequest) {
 
     const record = await findRecordByDraftId(draftId);
     if (!record) {
-      return NextResponse.json({ draftId, step1: null, step2: null, works: null, desired: null });
+      return NextResponse.json({
+        draftId,
+        step1: null,
+        step2: null,
+        works: null,
+        desired: null,
+        certifications: [],
+      });
     }
 
     const fields = record.fields ?? {};
@@ -145,6 +165,8 @@ export async function GET(req: NextRequest) {
       step2: parseJsonField(fields.step2, Step2Schema),
       works: parseJsonField(fields.works, z.array(WorkItemSchema)) ?? null,
       desired: parseJsonField(fields.desired, DesiredSchema),
+      certifications:
+        parseJsonField(fields.certifications, ResumeSchema.shape.certifications) ?? [],
     });
   } catch (error) {
     console.error(error);
@@ -155,25 +177,67 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const json = await req.json();
-    const parsed = BodySchema.safeParse(json);
-    if (!parsed.success) {
-      return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
+    const stepParsed = StepBodySchema.safeParse(json);
+    if (stepParsed.success) {
+      const { draftId, step, data } = stepParsed.data;
+      const schema = STEP_SCHEMAS[step];
+      const validated = schema.safeParse(data);
+      if (!validated.success) {
+        return NextResponse.json({ error: validated.error.flatten() }, { status: 400 });
+      }
+
+      const record = await findRecordByDraftId(draftId);
+      const { source_env, pr_ref } = envTag();
+
+      const stepField = step === 1 ? "step1" : "step2";
+      const fields: Record<string, unknown> = {
+        draftId,
+        [stepField]: JSON.stringify(validated.data ?? {}),
+        source_env,
+        pr_ref,
+        updatedAt: new Date().toISOString(),
+      };
+
+      if (record) {
+        const updated = await airtableFetch<AirtableWriteResponse>(`/${record.id}`, {
+          method: "PATCH",
+          body: JSON.stringify({ fields }),
+        });
+        return NextResponse.json({ ok: true, recordId: updated.id ?? record.id });
+      }
+
+      const created = await airtableFetch<AirtableWriteResponse>("", {
+        method: "POST",
+        body: JSON.stringify({
+          records: [
+            {
+              fields: {
+                ...fields,
+                createdAt: new Date().toISOString(),
+              },
+            },
+          ],
+        }),
+      });
+
+      return NextResponse.json({
+        ok: true,
+        recordId: created.records?.[0]?.id ?? null,
+      });
     }
 
-    const { draftId, step, data } = parsed.data;
-    const schema = STEP_SCHEMAS[step];
-    const validated = schema.safeParse(data);
-    if (!validated.success) {
-      return NextResponse.json({ error: validated.error.flatten() }, { status: 400 });
+    const certificationsParsed = CertificationsBodySchema.safeParse(json);
+    if (!certificationsParsed.success) {
+      return NextResponse.json({ error: certificationsParsed.error.flatten() }, { status: 400 });
     }
 
-    const record = await findRecordByDraftId(draftId);
+    const { id, certifications } = certificationsParsed.data;
+    const record = await findRecordByDraftId(id);
     const { source_env, pr_ref } = envTag();
 
-    const stepField = step === 1 ? "step1" : "step2";
     const fields: Record<string, unknown> = {
-      draftId,
-      [stepField]: JSON.stringify(validated.data ?? {}),
+      draftId: id,
+      certifications: JSON.stringify(certifications ?? []),
       source_env,
       pr_ref,
       updatedAt: new Date().toISOString(),
@@ -184,6 +248,7 @@ export async function POST(req: NextRequest) {
         method: "PATCH",
         body: JSON.stringify({ fields }),
       });
+        
       return NextResponse.json({ ok: true, recordId: updated.id ?? record.id });
     }
 
@@ -219,7 +284,7 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
     }
 
-    const { draftId, works, desired } = parsed.data;
+    const { draftId, works, desired, certifications } = parsed.data;
     const record = await findRecordByDraftId(draftId);
     const { source_env, pr_ref } = envTag();
 
@@ -235,6 +300,9 @@ export async function PUT(req: NextRequest) {
     }
     if (typeof desired !== "undefined") {
       fields.desired = JSON.stringify(desired ?? emptyDesired());
+    }
+    if (typeof certifications !== "undefined") {
+      fields.certifications = JSON.stringify(certifications ?? []);
     }
 
     if (record) {

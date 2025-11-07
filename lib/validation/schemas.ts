@@ -169,3 +169,64 @@ export const EducationItemSchema = z
 export const EducationListSchema = z
   .array(EducationItemSchema)
   .min(1, "学歴を1件以上追加してください");
+
+const yearMonthValue = z
+  .string({ error: "年月を入力してください" })
+  .trim()
+  .min(1, { message: "年月を入力してください" })
+  .regex(/^[0-9]{4}-(0[1-9]|1[0-2])$/u, "YYYY-MM形式で入力してください");
+
+export const ExperienceItemSchema = z
+  .object({
+    companyName: z
+      .string({ error: "会社名を入力してください" })
+      .trim()
+      .min(1, { message: "会社名を入力してください" })
+      .max(120, "120文字以内で入力してください"),
+    jobTitle: z
+      .string({ error: "職種を入力してください" })
+      .trim()
+      .min(1, { message: "職種を入力してください" })
+      .max(120, "120文字以内で入力してください"),
+    start: yearMonthValue,
+    end: yearMonthValue.optional().or(z.literal("")),
+    present: z.boolean().default(false),
+    description: z
+      .string()
+      .trim()
+      .max(2000, "2000文字以内で入力してください")
+      .optional()
+      .or(z.literal("")),
+  })
+  .superRefine((value, ctx) => {
+    if (value.present) {
+      if (value.end && value.end !== "") {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: "在籍中の場合は終了年月を空にしてください",
+          path: ["end"],
+        });
+      }
+      return;
+    }
+
+    if (value.end && value.end !== "" && value.end < value.start) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "終了年月は開始年月以降を入力してください",
+        path: ["end"],
+      });
+    }
+  });
+
+export type ExperienceItem = z.infer<typeof ExperienceItemSchema>;
+
+export const ExperienceListSchema = z
+  .array(ExperienceItemSchema)
+  .min(1, "職歴を1件以上追加してください");
+
+export const ResumeSchema = z.object({
+  certifications: z.array(z.string()).optional(),
+});
+
+export type Resume = z.infer<typeof ResumeSchema>;
