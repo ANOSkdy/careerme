@@ -7,7 +7,7 @@ import type { SaveState } from "../_components/hooks/useAutoSave";
 import {
   ResumeStatusSchema,
   type ResumeStatus,
-} from "../../lib/validation/schemas";
+} from "../../../lib/validation/schemas";
 
 const STORAGE_KEY = "resume.resumeId";
 
@@ -40,6 +40,12 @@ type FormState = {
 };
 
 type FieldKey = keyof FormState;
+
+const fieldErrorMessages: Record<FieldKey, string> = {
+  eduStatus: "就学状況を選択してください",
+  joinTiming: "入社希望時期を選択してください",
+  jobChangeCount: "転職回数を選択してください",
+};
 
 const initialForm: FormState = {
   eduStatus: "",
@@ -169,7 +175,7 @@ export default function StatusForm() {
     for (const issue of validation.error.issues) {
       const key = issue.path.join(".");
       if (key === "eduStatus" || key === "joinTiming" || key === "jobChangeCount") {
-        map[key] = issue.message;
+        map[key] = fieldErrorMessages[key];
       }
     }
     return map;
