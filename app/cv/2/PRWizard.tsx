@@ -404,7 +404,8 @@ export default function PRWizard() {
   const handleNext = useCallback(() => {
     if (resumeId) {
       void saveQa(qaRef.current, { skipIfUnchanged: true });
-      router.push({ pathname: '/cv/3', query: { id: resumeId } });
+      const search = new URLSearchParams({ id: resumeId });
+      router.push(`/cv/3?${search.toString()}`);
     } else {
       router.push('/cv/3');
     }
