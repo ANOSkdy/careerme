@@ -103,3 +103,29 @@ export const BasicInfoPartialSchema = z.object({
 });
 
 export type BasicInfoPartial = z.infer<typeof BasicInfoPartialSchema>;
+
+export const ResumeStatusSchema = z.object({
+  eduStatus: z.enum(["在学中", "卒業済み"], {
+    errorMap: () => ({ message: "就学状況を選択してください" }),
+  }),
+  joinTiming: z.enum(["すぐ", "3ヶ月以内", "半年以内", "1年以内", "いい所があれば"], {
+    errorMap: () => ({ message: "入社希望時期を選択してください" }),
+  }),
+  jobChangeCount: z.enum([
+    "1",
+    "2",
+    "3",
+    "4",
+    "5",
+    "6",
+    "7",
+    "8",
+    "9",
+    "10",
+    "10回以上",
+  ], {
+    errorMap: () => ({ message: "転職回数を選択してください" }),
+  }),
+});
+
+export type ResumeStatus = z.infer<typeof ResumeStatusSchema>;
