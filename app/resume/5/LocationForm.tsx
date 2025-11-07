@@ -502,16 +502,7 @@ export default function LocationForm() {
   return (
     <form onSubmit={handleSubmit} aria-describedby={loadErrorId} noValidate>
       <div style={{ marginBottom: "24px" }}>
-        <h2
-          style={{
-            fontSize: "1.5rem",
-            fontWeight: 600,
-            color: "var(--color-text-strong, #111827)",
-            marginBottom: "8px",
-          }}
-        >
-          希望勤務地
-        </h2>
+        <h2 className="resume-page-title">希望勤務地</h2>
         <p style={{ color: "var(--color-text-muted, #6b7280)", fontSize: "0.875rem" }}>
           希望する勤務地を選択してください。選択後は自動的に保存されます。
         </p>

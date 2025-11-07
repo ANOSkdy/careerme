@@ -339,16 +339,7 @@ export default function BasicInfoForm() {
   return (
     <form onSubmit={handleSubmit} style={{ display: "grid", gap: "24px" }}>
       <div>
-        <h1
-          style={{
-            fontSize: "1.5rem",
-            fontWeight: 600,
-            color: "var(--color-text, #333333)",
-            marginBottom: "16px",
-          }}
-        >
-          基本情報
-        </h1>
+        <h2 className="resume-page-title">基本情報</h2>
         <p style={{ color: "var(--color-secondary, #6b7280)", fontSize: "0.875rem" }}>
           氏名と生年月日を入力してください。必要事項の入力後、「次へ」で次に進めます。
         </p>

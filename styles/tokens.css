@@ -203,6 +203,14 @@ ul, ol {
   pointer-events: none;
 }
 
+.resume-page-title {
+  font-size: 1.5rem;
+  line-height: 1.3;
+  font-weight: 600;
+  color: var(--color-text-strong, #111827);
+  margin-bottom: var(--space-sm);
+}
+
 .step-nav__status {
   text-align: center;
   font-size: 0.8125rem;

@@ -503,16 +503,7 @@ export default function EducationForm() {
   return (
     <form onSubmit={handleSubmit} aria-describedby={infoMessage ? "education-status" : undefined}>
       <div style={{ marginBottom: "24px" }}>
-        <h1
-          style={{
-            fontSize: "1.5rem",
-            fontWeight: 600,
-            color: "var(--color-text-strong, #111827)",
-            marginBottom: "12px",
-          }}
-        >
-          学歴
-        </h1>
+        <h2 className="resume-page-title">学歴</h2>
         <p style={{ fontSize: "0.875rem", color: "var(--color-text-muted, #6b7280)" }}>
           在籍期間と学校名を入力してください。入力内容はフィールドから離れたタイミングで自動保存されます。
         </p>

@@ -564,7 +564,7 @@ export default function ExperienceForm() {
       noValidate
     >
       <header style={{ display: "grid", gap: "8px" }}>
-        <h1 style={{ fontSize: "1.5rem", fontWeight: 700 }}>職歴</h1>
+        <h2 className="resume-page-title">職歴</h2>
         <p style={{ color: "#4b5563", fontSize: "0.95rem", lineHeight: 1.6 }}>
           これまでの職歴を入力してください。現在の職務に在籍中の場合は「在籍中」にチェックを入れてください。
         </p>
