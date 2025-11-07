@@ -17,24 +17,25 @@ function createDobNumberSchema({
   invalidMessage: string;
   rangeMessage: string;
 }) {
-  return z.preprocess(
-    (value) => {
-      if (typeof value === "string") {
-        const trimmed = value.trim();
-        if (!trimmed) return undefined;
-        if (!digitPattern.test(trimmed)) return NaN;
-        return Number(trimmed);
-      }
-      if (typeof value === "number") {
-        return Number.isFinite(value) ? value : NaN;
-      }
-      return value;
-    },
-    z
-      .number({ required_error: requiredMessage, invalid_type_error: invalidMessage })
-      .min(min, { message: rangeMessage })
-      .max(max, { message: rangeMessage })
-  );
+  const stringInput = z
+    .string({ required_error: requiredMessage })
+    .trim()
+    .min(1, requiredMessage)
+    .regex(digitPattern, { message: invalidMessage })
+    .transform((value) => Number(value));
+
+  const numberInput = z
+    .number({ invalid_type_error: invalidMessage })
+    .refine((value) => Number.isInteger(value), { message: invalidMessage });
+
+  return z
+    .union([stringInput, numberInput])
+    .pipe(
+      z
+        .number({ invalid_type_error: invalidMessage })
+        .min(min, { message: rangeMessage })
+        .max(max, { message: rangeMessage })
+    );
 }
 
 export const DobSchema = z
