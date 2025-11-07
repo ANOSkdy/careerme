@@ -230,3 +230,35 @@ export const ResumeSchema = z.object({
 });
 
 export type Resume = z.infer<typeof ResumeSchema>;
+
+const preferredLocationMessage = "希望勤務地を選択してください";
+
+export function createPreferredLocationSchema(options: readonly string[]) {
+  const normalized = Array.from(
+    new Set(
+      options
+        .map((value) => (typeof value === "string" ? value.trim() : ""))
+        .filter((value): value is string => value.length > 0)
+    )
+  );
+
+  if (normalized.length === 0) {
+    return z.object({
+      preferredLocation: z
+        .string({ error: preferredLocationMessage })
+        .trim()
+        .min(1, { message: preferredLocationMessage }),
+    });
+  }
+
+  const [first, ...rest] = normalized;
+  return z.object({
+    preferredLocation: z.enum([first, ...rest] as [string, ...string[]], {
+      errorMap: () => ({ message: preferredLocationMessage }),
+    }),
+  });
+}
+
+export type PreferredLocationForm = {
+  preferredLocation: string;
+};
