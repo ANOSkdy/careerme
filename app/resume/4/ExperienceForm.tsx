@@ -1,20 +1,20 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   useCallback,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
   type ChangeEvent,
+  type FormEvent,
 } from "react";
-import { Controller, useFieldArray, useForm, useWatch } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 
 import AutoSaveBadge from "../_components/AutoSaveBadge";
-import StepNav from "../_components/StepNav";
 import type { SaveState } from "../_components/hooks/useAutoSave";
 import {
   ExperienceListSchema,
@@ -54,6 +54,14 @@ type LookupResponse = {
 
 type CertificationOption = { value: string; label: string };
 
+type ExperienceFieldErrors = Partial<Record<keyof ExperienceItem, string>>;
+
+type ValidationSnapshot = {
+  isValid: boolean;
+  experienceErrors: ExperienceFieldErrors[];
+  listError: string | null;
+};
+
 function toExperienceRow(raw: unknown): ExperienceItem {
   if (!raw || typeof raw !== "object") return { ...emptyRow };
   const source = raw as Record<string, unknown>;
@@ -86,15 +94,62 @@ function parseCertifications(raw: unknown): string[] {
   return raw.filter((value): value is string => typeof value === "string");
 }
 
-function getListError(errors: unknown): string | null {
-  if (!errors || Array.isArray(errors)) return null;
-  const record = errors as { root?: { message?: string } };
-  return record.root?.message ?? null;
+function createValidationSnapshot(values: FormValues): ValidationSnapshot {
+  const baseErrors: ExperienceFieldErrors[] = values.experiences.map(() => ({}));
+  const result = FormSchema.safeParse(values);
+
+  if (result.success) {
+    return {
+      isValid: true,
+      experienceErrors: baseErrors,
+      listError: null,
+    };
+  }
+
+  let listError: string | null = null;
+  const experienceErrors = [...baseErrors];
+
+  for (const issue of result.error.issues) {
+    if (issue.path[0] !== "experiences") continue;
+
+    if (issue.path.length === 1) {
+      listError ??= issue.message;
+      continue;
+    }
+
+    const index = issue.path[1];
+    const field = issue.path[2];
+
+    if (typeof index === "number") {
+      while (experienceErrors.length <= index) {
+        experienceErrors.push({});
+      }
+
+      if (typeof field === "string") {
+        const current = experienceErrors[index] ?? {};
+        experienceErrors[index] = {
+          ...current,
+          [field as keyof ExperienceItem]: issue.message,
+        };
+      }
+    }
+  }
+
+  return {
+    isValid: false,
+    experienceErrors,
+    listError,
+  };
 }
 
 export default function ExperienceForm() {
   const router = useRouter();
+
   const [resumeId, setResumeId] = useState<string | null>(null);
+  const [formValues, setFormValues] = useState<FormValues>({
+    experiences: [{ ...emptyRow }],
+    certifications: [],
+  });
   const [loadError, setLoadError] = useState<string | null>(null);
   const [certificationOptions, setCertificationOptions] = useState<
     CertificationOption[]
@@ -106,6 +161,7 @@ export default function ExperienceForm() {
     useState<SaveState>("idle");
   const [certificationSaveState, setCertificationSaveState] =
     useState<SaveState>("idle");
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const experienceDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(
     null
@@ -119,47 +175,32 @@ export default function ExperienceForm() {
   );
   const lastSavedExperiencesRef = useRef<string>("");
   const lastSavedCertificationsRef = useRef<string>("");
+  const pendingExperiencesRef = useRef<ExperienceItem[] | null>(null);
+  const pendingCertificationsRef = useRef<string[] | null>(null);
+  const isUnmountingRef = useRef(false);
 
-  const methods = useForm<FormValues>({
-    resolver: zodResolver(FormSchema),
-    mode: "onChange",
-    defaultValues: {
-      experiences: [{ ...emptyRow }],
-      certifications: [],
-    },
-  });
-
-  const {
-    control,
-    register,
-    handleSubmit,
-    reset,
-    setValue,
-    trigger,
-    formState: { errors, isValid, isSubmitting },
-  } = methods;
-
-  const { fields, append, remove, replace } = useFieldArray({
-    control,
-    name: "experiences",
-  });
-
-  const experiencesWatch = useWatch({ control, name: "experiences" });
-  const certificationsWatch = useWatch({ control, name: "certifications" });
-
-  const listError = useMemo(
-    () => getListError(errors.experiences),
-    [errors.experiences]
+  const validation = useMemo(
+    () => createValidationSnapshot(formValues),
+    [formValues]
   );
+
+  const experiences = formValues.experiences;
+  const certifications = useMemo(() => {
+    return Array.isArray(formValues.certifications)
+      ? formValues.certifications
+      : [];
+  }, [formValues.certifications]);
+  const experienceErrors = validation.experienceErrors;
+  const listError = experienceTouched ? validation.listError : null;
+
+  useLayoutEffect(() => {
+    return () => {
+      isUnmountingRef.current = true;
+    };
+  }, []);
 
   useEffect(() => {
     return () => {
-      if (experienceDebounceRef.current) {
-        clearTimeout(experienceDebounceRef.current);
-      }
-      if (certificationDebounceRef.current) {
-        clearTimeout(certificationDebounceRef.current);
-      }
       if (experienceIdleRef.current) {
         clearTimeout(experienceIdleRef.current);
       }
@@ -189,7 +230,9 @@ export default function ExperienceForm() {
         clearTimeout(experienceIdleRef.current);
         experienceIdleRef.current = null;
       }
-      setExperienceSaveState("saving");
+      if (!isUnmountingRef.current) {
+        setExperienceSaveState("saving");
+      }
       try {
         const res = await fetch("/api/data/experience", {
           method: "POST",
@@ -201,14 +244,22 @@ export default function ExperienceForm() {
           throw new Error(text || `failed to save experiences (${res.status})`);
         }
         lastSavedExperiencesRef.current = JSON.stringify(items);
-        setExperienceSaveState("saved");
-        experienceIdleRef.current = setTimeout(() => {
-          setExperienceSaveState("idle");
-          experienceIdleRef.current = null;
-        }, 1500);
+        if (!isUnmountingRef.current) {
+          setExperienceSaveState("saved");
+          experienceIdleRef.current = setTimeout(() => {
+            if (isUnmountingRef.current) {
+              experienceIdleRef.current = null;
+              return;
+            }
+            setExperienceSaveState("idle");
+            experienceIdleRef.current = null;
+          }, 1500);
+        }
       } catch (error) {
         console.error("Failed to save experiences", error);
-        setExperienceSaveState("error");
+        if (!isUnmountingRef.current) {
+          setExperienceSaveState("error");
+        }
       }
     },
     [resumeId]
@@ -221,7 +272,9 @@ export default function ExperienceForm() {
         clearTimeout(certificationIdleRef.current);
         certificationIdleRef.current = null;
       }
-      setCertificationSaveState("saving");
+      if (!isUnmountingRef.current) {
+        setCertificationSaveState("saving");
+      }
       try {
         const res = await fetch("/api/data/resume", {
           method: "POST",
@@ -233,206 +286,289 @@ export default function ExperienceForm() {
           throw new Error(text || `failed to save certifications (${res.status})`);
         }
         lastSavedCertificationsRef.current = JSON.stringify(values);
-        setCertificationSaveState("saved");
-        certificationIdleRef.current = setTimeout(() => {
-          setCertificationSaveState("idle");
-          certificationIdleRef.current = null;
-        }, 1500);
+        if (!isUnmountingRef.current) {
+          setCertificationSaveState("saved");
+          certificationIdleRef.current = setTimeout(() => {
+            if (isUnmountingRef.current) {
+              certificationIdleRef.current = null;
+              return;
+            }
+            setCertificationSaveState("idle");
+            certificationIdleRef.current = null;
+          }, 1500);
+        }
       } catch (error) {
         console.error("Failed to save certifications", error);
-        setCertificationSaveState("error");
+        if (!isUnmountingRef.current) {
+          setCertificationSaveState("error");
+        }
       }
     },
     [resumeId]
   );
 
-  const handleLoad = useCallback(
-    async (id: string) => {
-      setLoadError(null);
-      setHasLoaded(false);
-      try {
-        const [experienceRes, resumeRes, lookupRes] = await Promise.all([
-          fetch(`/api/data/experience?resumeId=${encodeURIComponent(id)}`, {
-            cache: "no-store",
-          }),
-          fetch(`/api/data/resume?draftId=${encodeURIComponent(id)}`, {
-            cache: "no-store",
-          }),
-          fetch(`/api/data/lookups?type=certifications`, {
-            cache: "force-cache",
-          }),
-        ]);
+  const handleLoad = useCallback(async (id: string) => {
+    setLoadError(null);
+    setHasLoaded(false);
+    try {
+      const [experienceRes, resumeRes, lookupRes] = await Promise.all([
+        fetch(`/api/data/experience?resumeId=${encodeURIComponent(id)}`, {
+          cache: "no-store",
+        }),
+        fetch(`/api/data/resume?draftId=${encodeURIComponent(id)}`, {
+          cache: "no-store",
+        }),
+        fetch(`/api/data/lookups?type=certifications`, {
+          cache: "force-cache",
+        }),
+      ]);
 
-        if (!experienceRes.ok) {
-          throw new Error(`failed to load experiences (${experienceRes.status})`);
-        }
-        const experienceJson = (await experienceRes.json()) as ExperienceResponse;
-        const normalizedItems = normalizeExperienceItems(experienceJson.items);
-        const experienceItems =
-          normalizedItems.length > 0 ? normalizedItems : [{ ...emptyRow }];
-
-        if (!resumeRes.ok) {
-          throw new Error(`failed to load resume (${resumeRes.status})`);
-        }
-        const resumeJson = (await resumeRes.json()) as ResumeResponse;
-        const certificationValues = parseCertifications(
-          resumeJson.certifications
-        );
-
-        if (!lookupRes.ok) {
-          throw new Error(`failed to load lookups (${lookupRes.status})`);
-        }
-        const lookupJson = (await lookupRes.json()) as LookupResponse;
-        setCertificationOptions(lookupJson.options ?? []);
-
-        reset({
-          experiences: experienceItems,
-          certifications: certificationValues,
-        });
-        replace(experienceItems);
-        setValue("certifications", certificationValues, {
-          shouldValidate: true,
-          shouldDirty: false,
-        });
-
-        lastSavedExperiencesRef.current = JSON.stringify(experienceItems);
-        lastSavedCertificationsRef.current = JSON.stringify(certificationValues);
-        setExperienceTouched(false);
-        setCertificationTouched(false);
-        setHasLoaded(true);
-      } catch (error) {
-        console.error("Failed to load experience step", error);
-        setLoadError(
-          "データの取得に失敗しました。時間をおいて再度お試しください。"
-        );
-        reset({ experiences: [{ ...emptyRow }], certifications: [] });
-        replace([{ ...emptyRow }]);
-        setCertificationOptions([]);
-        lastSavedExperiencesRef.current = "";
-        lastSavedCertificationsRef.current = "";
-        setExperienceTouched(false);
-        setCertificationTouched(false);
-        setHasLoaded(true);
+      if (!experienceRes.ok) {
+        throw new Error(`failed to load experiences (${experienceRes.status})`);
       }
-    },
-    [replace, reset, setValue]
-  );
+      const experienceJson = (await experienceRes.json()) as ExperienceResponse;
+      const normalizedItems = normalizeExperienceItems(experienceJson.items);
+      const experienceItems =
+        normalizedItems.length > 0 ? normalizedItems : [{ ...emptyRow }];
+
+      if (!resumeRes.ok) {
+        throw new Error(`failed to load resume (${resumeRes.status})`);
+      }
+      const resumeJson = (await resumeRes.json()) as ResumeResponse;
+      const certificationValues = parseCertifications(
+        resumeJson.certifications
+      );
+
+      if (!lookupRes.ok) {
+        throw new Error(`failed to load lookups (${lookupRes.status})`);
+      }
+      const lookupJson = (await lookupRes.json()) as LookupResponse;
+      setCertificationOptions(lookupJson.options ?? []);
+
+      setFormValues({
+        experiences: experienceItems,
+        certifications: certificationValues,
+      });
+
+      lastSavedExperiencesRef.current = JSON.stringify(experienceItems);
+      lastSavedCertificationsRef.current = JSON.stringify(certificationValues);
+      setExperienceTouched(false);
+      setCertificationTouched(false);
+      setExperienceSaveState("idle");
+      setCertificationSaveState("idle");
+      setHasLoaded(true);
+    } catch (error) {
+      console.error("Failed to load experience step", error);
+      setLoadError(
+        "データの取得に失敗しました。時間をおいて再度お試しください。"
+      );
+      setFormValues({ experiences: [{ ...emptyRow }], certifications: [] });
+      setCertificationOptions([]);
+      lastSavedExperiencesRef.current = "";
+      lastSavedCertificationsRef.current = "";
+      setExperienceTouched(false);
+      setCertificationTouched(false);
+      setExperienceSaveState("idle");
+      setCertificationSaveState("idle");
+      setHasLoaded(true);
+    }
+  }, []);
 
   useEffect(() => {
     if (!resumeId) return;
     void handleLoad(resumeId);
   }, [resumeId, handleLoad]);
-
   useEffect(() => {
     if (!resumeId || !hasLoaded || !experienceTouched) return;
-    const parsed = ExperienceListSchema.safeParse(experiencesWatch);
+    const parsed = ExperienceListSchema.safeParse(experiences);
     if (!parsed.success) return;
 
     const nextJson = JSON.stringify(parsed.data);
     if (nextJson === lastSavedExperiencesRef.current) return;
 
+    const payload = parsed.data;
+    pendingExperiencesRef.current = payload;
     if (experienceDebounceRef.current) {
       clearTimeout(experienceDebounceRef.current);
     }
     experienceDebounceRef.current = setTimeout(() => {
-      void saveExperiences(parsed.data);
+      pendingExperiencesRef.current = null;
       experienceDebounceRef.current = null;
+      void saveExperiences(payload);
     }, 800);
 
     return () => {
       if (experienceDebounceRef.current) {
         clearTimeout(experienceDebounceRef.current);
         experienceDebounceRef.current = null;
+        if (isUnmountingRef.current && pendingExperiencesRef.current) {
+          const pending = pendingExperiencesRef.current;
+          pendingExperiencesRef.current = null;
+          void saveExperiences(pending);
+        }
       }
     };
   }, [
-    experiencesWatch,
-    experienceTouched,
-    hasLoaded,
     resumeId,
+    hasLoaded,
+    experienceTouched,
+    experiences,
     saveExperiences,
   ]);
 
   useEffect(() => {
     if (!resumeId || !hasLoaded || !certificationTouched) return;
-    const values = Array.isArray(certificationsWatch)
-      ? certificationsWatch.filter((value): value is string => typeof value === "string")
-      : [];
-
+    const values = certifications;
     const nextJson = JSON.stringify(values);
     if (nextJson === lastSavedCertificationsRef.current) return;
 
+    pendingCertificationsRef.current = values;
     if (certificationDebounceRef.current) {
       clearTimeout(certificationDebounceRef.current);
     }
     certificationDebounceRef.current = setTimeout(() => {
-      void saveCertifications(values);
+      pendingCertificationsRef.current = null;
       certificationDebounceRef.current = null;
+      void saveCertifications(values);
     }, 600);
 
     return () => {
       if (certificationDebounceRef.current) {
         clearTimeout(certificationDebounceRef.current);
         certificationDebounceRef.current = null;
+        if (isUnmountingRef.current && pendingCertificationsRef.current) {
+          const pending = pendingCertificationsRef.current;
+          pendingCertificationsRef.current = null;
+          void saveCertifications(pending);
+        }
       }
     };
   }, [
-    certificationsWatch,
-    certificationTouched,
-    hasLoaded,
     resumeId,
+    hasLoaded,
+    certificationTouched,
+    certifications,
     saveCertifications,
   ]);
 
+  const handleExperienceFieldChange = useCallback(
+    <K extends keyof ExperienceItem>(
+      index: number,
+      key: K,
+      value: ExperienceItem[K]
+    ) => {
+      setExperienceTouched(true);
+      setFormValues((prev) => {
+        const next = prev.experiences.map((item, idx) => {
+          if (idx !== index) return item;
+          return { ...item, [key]: value };
+        });
+        return { ...prev, experiences: next };
+      });
+    },
+    []
+  );
+
+  const handlePresentToggle = useCallback(
+    (index: number, checked: boolean) => {
+      setExperienceTouched(true);
+      setFormValues((prev) => {
+        const next = prev.experiences.map((item, idx) => {
+          if (idx !== index) return item;
+          return {
+            ...item,
+            present: checked,
+            end: checked ? "" : item.end ?? "",
+          };
+        });
+        return { ...prev, experiences: next };
+      });
+    },
+    []
+  );
+
   const handleAddRow = () => {
-    append({ ...emptyRow });
     setExperienceTouched(true);
-    void trigger("experiences");
+    setFormValues((prev) => ({
+      ...prev,
+      experiences: [...prev.experiences, { ...emptyRow }],
+    }));
   };
 
   const handleRemoveRow = (index: number) => {
-    if (fields.length <= 1) {
-      replace([{ ...emptyRow }]);
-    } else {
-      remove(index);
-    }
     setExperienceTouched(true);
-    void trigger("experiences");
+    setFormValues((prev) => {
+      const next = prev.experiences.filter((_, idx) => idx !== index);
+      return {
+        ...prev,
+        experiences: next.length > 0 ? next : [{ ...emptyRow }],
+      };
+    });
+  };
+
+  const handleCertificationChange = (
+    event: ChangeEvent<HTMLSelectElement>
+  ) => {
+    const selected = Array.from(event.target.selectedOptions).map(
+      (option) => option.value
+    );
+    setCertificationTouched(true);
+    setFormValues((prev) => ({
+      ...prev,
+      certifications: selected,
+    }));
   };
 
   const handleRemoveCertification = (value: string) => {
-    const current = Array.isArray(certificationsWatch)
-      ? certificationsWatch
-      : [];
-    const next = current.filter((item) => item !== value);
-    setValue("certifications", next, {
-      shouldDirty: true,
-      shouldValidate: true,
-    });
     setCertificationTouched(true);
+    setFormValues((prev) => {
+      const current = Array.isArray(prev.certifications)
+        ? prev.certifications
+        : [];
+      const next = current.filter((item) => item !== value);
+      return { ...prev, certifications: next };
+    });
   };
 
-  const onSubmit = handleSubmit(async (data) => {
-    if (!resumeId) return;
-    await saveExperiences(data.experiences);
-    router.push("/resume/5");
-  });
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setExperienceTouched(true);
+    setCertificationTouched(true);
+    const parsed = FormSchema.safeParse({
+      experiences,
+      certifications,
+    });
 
+    if (!parsed.success) {
+      return;
+    }
+
+    if (!resumeId) {
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      await saveExperiences(parsed.data.experiences);
+      router.push("/resume/5");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const isNextDisabled = !validation.isValid || isSubmitting;
   return (
-    <form onSubmit={onSubmit} noValidate>
-      <h2
-        style={{
-          marginBottom: "12px",
-          fontSize: "1.5rem",
-          fontWeight: 600,
-          color: "var(--color-heading, #111827)",
-        }}
-      >
-        職歴
-      </h2>
-      <p style={{ fontSize: "0.875rem", color: "#6b7280", marginBottom: "16px" }}>
-        会社名・職種・開始年月は必須です。終了年月は在籍中の場合は空欄のままにしてください。
-      </p>
+    <form
+      onSubmit={handleSubmit}
+      style={{ display: "grid", gap: "24px" }}
+      noValidate
+    >
+      <header style={{ display: "grid", gap: "8px" }}>
+        <h1 style={{ fontSize: "1.5rem", fontWeight: 700 }}>職歴</h1>
+        <p style={{ color: "#4b5563", fontSize: "0.95rem", lineHeight: 1.6 }}>
+          これまでの職歴を入力してください。現在の職務に在籍中の場合は「在籍中」にチェックを入れてください。
+        </p>
+      </header>
 
       {loadError && (
         <div
@@ -469,73 +605,21 @@ export default function ExperienceForm() {
       )}
 
       <div style={{ display: "grid", gap: "16px" }}>
-        {fields.map((field, index) => {
-          const fieldId = `experience-${field.id}`;
-          const watchedRow = Array.isArray(experiencesWatch)
-            ? experiencesWatch[index]
-            : undefined;
-          const present = Boolean(watchedRow?.present);
-          const fieldErrors = Array.isArray(errors.experiences)
-            ? ((errors.experiences[index] ?? {}) as Partial<
-                Record<keyof ExperienceItem, { message?: string }>
-              >)
-            : undefined;
+        {experiences.map((row, index) => {
+          const fieldId = `experience-${index}`;
+          const present = Boolean(row.present);
+          const fieldErrors = experienceTouched
+            ? experienceErrors[index] ?? {}
+            : {};
 
-          const companyNameError = fieldErrors?.companyName?.message;
-          const jobTitleError = fieldErrors?.jobTitle?.message;
-          const startError = fieldErrors?.start?.message;
-          const endError = fieldErrors?.end?.message;
-
-          const commonRegisterOptions = {
-            onBlur: () => {
-              setExperienceTouched(true);
-              void trigger("experiences");
-            },
-            onChange: () => {
-              setExperienceTouched(true);
-            },
-          } as const;
-
-          const companyField = register(
-            `experiences.${index}.companyName`,
-            commonRegisterOptions
-          );
-          const jobField = register(
-            `experiences.${index}.jobTitle`,
-            commonRegisterOptions
-          );
-          const startField = register(
-            `experiences.${index}.start`,
-            commonRegisterOptions
-          );
-          const endField = register(`experiences.${index}.end`, {
-            ...commonRegisterOptions,
-          });
-          const descriptionField = register(
-            `experiences.${index}.description`,
-            commonRegisterOptions
-          );
-          const presentField = register(`experiences.${index}.present`, {
-            onBlur: () => {
-              setExperienceTouched(true);
-              void trigger("experiences");
-            },
-            onChange: (event: ChangeEvent<HTMLInputElement>) => {
-              const checked = event.target.checked;
-              setExperienceTouched(true);
-              if (checked) {
-                setValue(`experiences.${index}.end`, "", {
-                  shouldDirty: true,
-                  shouldValidate: true,
-                });
-              }
-              void trigger("experiences");
-            },
-          });
+          const companyNameError = fieldErrors.companyName;
+          const jobTitleError = fieldErrors.jobTitle;
+          const startError = fieldErrors.start;
+          const endError = fieldErrors.end;
 
           return (
             <fieldset
-              key={field.id}
+              key={fieldId}
               style={{
                 border: "1px solid #e5e7eb",
                 borderRadius: "12px",
@@ -565,8 +649,15 @@ export default function ExperienceForm() {
                   <input
                     id={`${fieldId}-company`}
                     type="text"
-                    {...companyField}
-                    value={watchedRow?.companyName ?? ""}
+                    value={row.companyName ?? ""}
+                    onChange={(event) =>
+                      handleExperienceFieldChange(
+                        index,
+                        "companyName",
+                        event.target.value
+                      )
+                    }
+                    onBlur={() => setExperienceTouched(true)}
                     required
                     style={{
                       marginTop: "4px",
@@ -601,8 +692,15 @@ export default function ExperienceForm() {
                   <input
                     id={`${fieldId}-title`}
                     type="text"
-                    {...jobField}
-                    value={watchedRow?.jobTitle ?? ""}
+                    value={row.jobTitle ?? ""}
+                    onChange={(event) =>
+                      handleExperienceFieldChange(
+                        index,
+                        "jobTitle",
+                        event.target.value
+                      )
+                    }
+                    onBlur={() => setExperienceTouched(true)}
                     required
                     style={{
                       marginTop: "4px",
@@ -637,8 +735,15 @@ export default function ExperienceForm() {
                   <input
                     id={`${fieldId}-start`}
                     type="month"
-                    {...startField}
-                    value={watchedRow?.start ?? ""}
+                    value={row.start ?? ""}
+                    onChange={(event) =>
+                      handleExperienceFieldChange(
+                        index,
+                        "start",
+                        event.target.value
+                      )
+                    }
+                    onBlur={() => setExperienceTouched(true)}
                     required
                     style={{
                       marginTop: "4px",
@@ -671,8 +776,15 @@ export default function ExperienceForm() {
                   <input
                     id={`${fieldId}-end`}
                     type="month"
-                    {...endField}
-                    value={watchedRow?.end ?? ""}
+                    value={row.end ?? ""}
+                    onChange={(event) =>
+                      handleExperienceFieldChange(
+                        index,
+                        "end",
+                        event.target.value
+                      )
+                    }
+                    onBlur={() => setExperienceTouched(true)}
                     disabled={present}
                     style={{
                       marginTop: "4px",
@@ -681,8 +793,6 @@ export default function ExperienceForm() {
                       border: "1px solid #d1d5db",
                       padding: "8px 12px",
                       fontSize: "0.875rem",
-                      backgroundColor: present ? "#f3f4f6" : "#ffffff",
-                      cursor: present ? "not-allowed" : "text",
                     }}
                     aria-invalid={Boolean(endError)}
                     aria-describedby={endError ? `${fieldId}-end-error` : undefined}
@@ -696,27 +806,26 @@ export default function ExperienceForm() {
                     </p>
                   )}
                 </div>
+              </div>
 
-                <div style={{ alignSelf: "end" }}>
-                  <label
-                    htmlFor={`${fieldId}-present`}
-                    style={{
-                      display: "inline-flex",
-                      alignItems: "center",
-                      gap: "8px",
-                      fontSize: "0.875rem",
-                      fontWeight: 600,
-                    }}
-                  >
-                    <input
-                      id={`${fieldId}-present`}
-                      type="checkbox"
-                      {...presentField}
-                      checked={present}
-                    />
-                    在籍中
-                  </label>
-                </div>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  fontSize: "0.875rem",
+                }}
+              >
+                <input
+                  id={`${fieldId}-present`}
+                  type="checkbox"
+                  checked={present}
+                  onChange={(event) =>
+                    handlePresentToggle(index, event.target.checked)
+                  }
+                  onBlur={() => setExperienceTouched(true)}
+                />
+                <label htmlFor={`${fieldId}-present`}>在籍中</label>
               </div>
 
               <div>
@@ -728,8 +837,15 @@ export default function ExperienceForm() {
                 </label>
                 <textarea
                   id={`${fieldId}-description`}
-                  {...descriptionField}
-                  value={watchedRow?.description ?? ""}
+                  value={row.description ?? ""}
+                  onChange={(event) =>
+                    handleExperienceFieldChange(
+                      index,
+                      "description",
+                      event.target.value
+                    )
+                  }
+                  onBlur={() => setExperienceTouched(true)}
                   rows={4}
                   style={{
                     marginTop: "4px",
@@ -803,45 +919,30 @@ export default function ExperienceForm() {
           >
             資格一覧
           </label>
-          <Controller
-            control={control}
-            name="certifications"
-            render={({ field }) => (
-              <select
-                id="resume-certifications"
-                multiple
-                value={field.value ?? []}
-                onChange={(event) => {
-                  const selected = Array.from(event.target.selectedOptions).map(
-                    (option) => option.value
-                  );
-                  field.onChange(selected);
-                  setCertificationTouched(true);
-                }}
-                onBlur={() => {
-                  field.onBlur();
-                  setCertificationTouched(true);
-                }}
-                style={{
-                  minHeight: "160px",
-                  borderRadius: "8px",
-                  border: "1px solid #d1d5db",
-                  padding: "8px",
-                  fontSize: "0.875rem",
-                }}
-              >
-                {certificationOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            )}
-          />
+          <select
+            id="resume-certifications"
+            multiple
+            value={certifications}
+            onChange={handleCertificationChange}
+            onBlur={() => setCertificationTouched(true)}
+            style={{
+              minHeight: "160px",
+              borderRadius: "8px",
+              border: "1px solid #d1d5db",
+              padding: "8px",
+              fontSize: "0.875rem",
+            }}
+          >
+            {certificationOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
 
-          {Array.isArray(certificationsWatch) && certificationsWatch.length > 0 && (
+          {Array.isArray(certifications) && certifications.length > 0 && (
             <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
-              {certificationsWatch.map((value) => {
+              {certifications.map((value) => {
                 const option = certificationOptions.find(
                   (item) => item.value === value
                 );
@@ -887,7 +988,47 @@ export default function ExperienceForm() {
         <AutoSaveBadge state={certificationSaveState} />
       </section>
 
-      <StepNav step={4} nextDisabled={!isValid || isSubmitting} />
+      <div
+        style={{
+          marginTop: "24px",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: "12px",
+        }}
+      >
+        <Link
+          href="/resume/3"
+          style={{
+            padding: "8px 16px",
+            borderRadius: "8px",
+            fontSize: "0.875rem",
+            border: "1px solid #d1d5db",
+            backgroundColor: "#ffffff",
+            color: "#1f2937",
+            textDecoration: "none",
+          }}
+        >
+          戻る
+        </Link>
+        <div style={{ fontSize: "0.75rem", color: "#9ca3af" }}>Step 4 / 5</div>
+        <button
+          type="submit"
+          disabled={isNextDisabled}
+          style={{
+            padding: "8px 16px",
+            borderRadius: "8px",
+            fontSize: "0.875rem",
+            border: "1px solid var(--color-primary, #4A90E2)",
+            backgroundColor: "var(--color-primary, #4A90E2)",
+            color: "#ffffff",
+            opacity: isNextDisabled ? 0.5 : 1,
+            cursor: isNextDisabled ? "not-allowed" : "pointer",
+          }}
+        >
+          次へ
+        </button>
+      </div>
     </form>
   );
 }
