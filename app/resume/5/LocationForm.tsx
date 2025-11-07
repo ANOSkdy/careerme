@@ -14,6 +14,10 @@ import type { ChangeEvent, FormEvent } from "react";
 import type { ZodError } from "zod";
 
 import { createPreferredLocationSchema } from "../../../lib/validation/schemas";
+import AutoSaveBadge from "../_components/AutoSaveBadge";
+import TagInput from "../_components/TagInput";
+import { useAutoSave } from "../_components/hooks/useAutoSave";
+import { DesiredSchema } from "../_schemas/resume";
 
 type Option = { value: string; label: string };
 
@@ -24,18 +28,110 @@ type LookupResponse = {
 
 type ResumeResponse = {
   preferredLocation?: unknown;
-  desired?: { locations?: unknown } | null;
-  data?: { preferredLocation?: unknown };
-  fields?: { preferredLocation?: unknown };
+  desired?: unknown;
+  data?: { preferredLocation?: unknown; desired?: unknown };
+  fields?: { preferredLocation?: unknown; desired?: unknown };
 };
 
 const STORAGE_KEY = "resume.resumeId";
 const ERROR_MESSAGE = "希望勤務地を選択してください";
 
+type DesiredSnapshot = {
+  preferredLocation: string | null;
+  roles: string[];
+  industries: string[];
+  locations: string[];
+};
+
 function extractValidationMessage(
   error: ZodError<{ preferredLocation: string }>
 ): string {
   return error.flatten().fieldErrors.preferredLocation?.[0] ?? ERROR_MESSAGE;
+}
+
+function parseDesired(candidate: unknown) {
+  const value = (() => {
+    if (typeof candidate === "string") {
+      try {
+        return JSON.parse(candidate) as unknown;
+      } catch (error) {
+        console.error("Failed to parse desired JSON", error);
+        return null;
+      }
+    }
+    return candidate ?? null;
+  })();
+
+  if (!value || typeof value !== "object") return null;
+  const result = DesiredSchema.safeParse(value);
+  if (!result.success) return null;
+  return result.data;
+}
+
+function uniqueTags(values: readonly string[] | undefined): string[] {
+  if (!values) return [];
+  const seen = new Set<string>();
+  const normalized: string[] = [];
+  for (const item of values) {
+    if (typeof item !== "string") continue;
+    const trimmed = item.trim();
+    if (!trimmed || seen.has(trimmed)) continue;
+    seen.add(trimmed);
+    normalized.push(trimmed);
+  }
+  return normalized;
+}
+
+function extractDesiredSnapshot(
+  payload: ResumeResponse | null | undefined
+): DesiredSnapshot {
+  const fallback: DesiredSnapshot = {
+    preferredLocation: null,
+    roles: [],
+    industries: [],
+    locations: [],
+  };
+
+  if (!payload || typeof payload !== "object") {
+    return fallback;
+  }
+
+  const preferredCandidates: unknown[] = [
+    payload.preferredLocation,
+    payload.data?.preferredLocation,
+    payload.fields?.preferredLocation,
+  ];
+
+  let preferredLocation: string | null = null;
+  for (const candidate of preferredCandidates) {
+    if (typeof candidate === "string" && candidate.trim()) {
+      preferredLocation = candidate.trim();
+      break;
+    }
+  }
+
+  const desiredCandidates: unknown[] = [
+    payload.desired,
+    payload.data?.desired,
+    payload.fields?.desired,
+  ];
+
+  for (const candidate of desiredCandidates) {
+    const parsed = parseDesired(candidate);
+    if (!parsed) continue;
+    const roles = uniqueTags(parsed.roles);
+    const industries = uniqueTags(parsed.industries);
+    const locations = uniqueTags(parsed.locations);
+    return {
+      preferredLocation:
+        preferredLocation ?? locations.find((location) => location.length > 0) ?? null,
+      roles,
+      industries,
+      locations,
+    };
+  }
+
+  return fallback;
 }
 
 function normalizeOptions(payload: LookupResponse): Option[] {
@@ -73,35 +169,6 @@ function normalizeOptions(payload: LookupResponse): Option[] {
   return result;
 }
 
-function extractPreferredLocation(payload: ResumeResponse | null | undefined): string | null {
-  if (!payload || typeof payload !== "object") return null;
-  const candidates: unknown[] = [
-    payload.preferredLocation,
-    payload.data?.preferredLocation,
-    payload.fields?.preferredLocation,
-  ];
-
-  for (const candidate of candidates) {
-    if (typeof candidate === "string" && candidate.trim()) {
-      return candidate.trim();
-    }
-  }
-
-  const desired = payload.desired;
-  if (desired && typeof desired === "object") {
-    const locations = (desired as { locations?: unknown }).locations;
-    if (Array.isArray(locations)) {
-      for (const location of locations) {
-        if (typeof location === "string" && location.trim()) {
-          return location.trim();
-        }
-      }
-    }
-  }
-
-  return null;
-}
-
 export default function LocationForm() {
   const router = useRouter();
   const [resumeId, setResumeId] = useState<string | null>(null);
@@ -116,6 +183,9 @@ export default function LocationForm() {
   );
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [roles, setRoles] = useState<string[]>([]);
+  const [industries, setIndustries] = useState<string[]>([]);
+  const [desiredReady, setDesiredReady] = useState(false);
 
   const lastSavedRef = useRef<string | null>(null);
   const isMountedRef = useRef(true);
@@ -202,16 +272,22 @@ export default function LocationForm() {
         }
         const json = (await res.json()) as ResumeResponse;
         if (cancelled) return;
-        const location = extractPreferredLocation(json);
-        if (location) {
-          setValue(location);
-          lastSavedRef.current = location;
+        const snapshot = extractDesiredSnapshot(json);
+        if (snapshot.preferredLocation) {
+          setValue(snapshot.preferredLocation);
+          lastSavedRef.current = snapshot.preferredLocation;
         }
+        setRoles(snapshot.roles);
+        setIndustries(snapshot.industries);
       } catch (error) {
         if ((error as Error).name === "AbortError") return;
         console.error("Failed to load preferred location", error);
         if (!cancelled) {
           setLoadError("データの取得に失敗しました。時間をおいて再度お試しください。");
+        }
+      } finally {
+        if (!cancelled) {
+          setDesiredReady(true);
         }
       }
     }
@@ -233,6 +309,46 @@ export default function LocationForm() {
     () => schema.safeParse({ preferredLocation: value }),
     [schema, value]
   );
+
+  const desiredPayload = useMemo(
+    () => ({
+      roles,
+      industries,
+      locations: value ? [value] : [],
+    }),
+    [roles, industries, value]
+  );
+
+  const saveDesired = useCallback(
+    async (payload: typeof desiredPayload) => {
+      if (!resumeId) {
+        throw new Error("保存に必要なIDがありません");
+      }
+
+      const res = await fetch("/api/data/resume", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          draftId: resumeId,
+          desired: {
+            roles: payload.roles,
+            industries: payload.industries,
+            locations: payload.locations,
+          },
+        }),
+        cache: "no-store",
+      });
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text || `failed to save desired conditions: ${res.status}`);
+      }
+    },
+    [resumeId]
+  );
+
+  const desiredAutoSaveState = useAutoSave(desiredPayload, saveDesired, 1500, {
+    enabled: desiredReady && Boolean(resumeId),
+  });
 
   const persist = useCallback(
     async (location: string, { silent = false }: { silent?: boolean } = {}) => {
@@ -309,6 +425,16 @@ export default function LocationForm() {
     [schema, touched]
   );
 
+  const handleRolesChange = useCallback((next: string[]) => {
+    setRoles(next);
+    setSubmitError(null);
+  }, []);
+
+  const handleIndustriesChange = useCallback((next: string[]) => {
+    setIndustries(next);
+    setSubmitError(null);
+  }, []);
+
   const handleBlur = useCallback(async () => {
     if (!touched) {
       setTouched(true);
@@ -341,15 +467,26 @@ export default function LocationForm() {
       }
       setFieldError(null);
       setIsSubmitting(true);
-      const ok = await persist(result.data.preferredLocation, { silent: true });
-      setIsSubmitting(false);
-      if (!ok) {
+      try {
+        const [locationSaved] = await Promise.all([
+          persist(result.data.preferredLocation, { silent: true }),
+          saveDesired(desiredPayload),
+        ]);
+        if (!locationSaved) {
+          setIsSubmitting(false);
+          setSubmitError("保存に失敗しました。時間をおいて再度お試しください。");
+          return;
+        }
+      } catch (error) {
+        console.error("Failed to save desired conditions", error);
+        setIsSubmitting(false);
         setSubmitError("保存に失敗しました。時間をおいて再度お試しください。");
         return;
       }
+      setIsSubmitting(false);
       router.push("/cv/2");
     },
-    [schema, value, resumeId, persist, router]
+    [schema, value, resumeId, persist, router, saveDesired, desiredPayload]
   );
 
   const isValid = validation.success;
@@ -406,7 +543,16 @@ export default function LocationForm() {
         )}
       </div>
 
-      <div style={{ display: "grid", gap: "16px" }}>
+      <div
+        style={{
+          display: "grid",
+          gap: "20px",
+          borderRadius: "12px",
+          border: "1px solid #e5e7eb",
+          padding: "20px",
+          backgroundColor: "#ffffff",
+        }}
+      >
         <div>
           <label
             htmlFor="preferredLocation"
@@ -461,6 +607,54 @@ export default function LocationForm() {
             </p>
           )}
         </div>
+
+        <div>
+          <h3
+            style={{
+              fontSize: "1rem",
+              fontWeight: 600,
+              marginBottom: "8px",
+              color: "var(--color-text-strong, #111827)",
+            }}
+          >
+            希望職種
+          </h3>
+          <p style={{ fontSize: "0.8125rem", color: "#6b7280", marginBottom: "8px" }}>
+            希望する職種をタグで入力してください。
+          </p>
+          <TagInput
+            id="desired-roles"
+            label="希望職種"
+            value={roles}
+            onChange={handleRolesChange}
+            placeholder="例）マーケティング、ITコンサル、カスタマーサクセス"
+          />
+        </div>
+
+        <div>
+          <h3
+            style={{
+              fontSize: "1rem",
+              fontWeight: 600,
+              marginBottom: "8px",
+              color: "var(--color-text-strong, #111827)",
+            }}
+          >
+            希望業界
+          </h3>
+          <p style={{ fontSize: "0.8125rem", color: "#6b7280", marginBottom: "8px" }}>
+            関心のある業界をタグで入力してください。
+          </p>
+          <TagInput
+            id="desired-industries"
+            label="希望業界"
+            value={industries}
+            onChange={handleIndustriesChange}
+            placeholder="例）SaaS、金融、ヘルスケア"
+          />
+        </div>
+
+        <AutoSaveBadge state={desiredAutoSaveState} />
       </div>
 
       <div
