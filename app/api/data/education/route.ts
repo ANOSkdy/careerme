@@ -2,30 +2,51 @@ export const runtime = "nodejs";
 
 import { NextRequest, NextResponse } from "next/server";
 
-import type { AirtableRecord } from "../../../../lib/db/airtable";
-import { createAirtableRecords, deleteAirtableRecords, listAirtableRecords } from "../../../../lib/db/airtable";
-import { EducationListSchema } from "../../../resume/_schemas/resume";
+import {
+  createAirtableRecords,
+  deleteAirtableRecords,
+  listAirtableRecords,
+  type AirtableRecord,
+} from "../../../../lib/db/airtable";
+import { EducationListSchema } from "../../../../lib/validation/schemas";
 
 const TABLE_NAME = process.env.AIRTABLE_TABLE_EDUCATION ?? "Education";
 const WRITE_BATCH_SIZE = 10;
 
 type EducationFields = {
-  draftId: string;
-  school: string;
+  resumeId?: string;
+  draftId?: string;
+  schoolName?: string;
+  faculty?: string;
+  school?: string;
   degree?: string;
-  start: string;
+  start?: string;
   end?: string;
+  present?: boolean;
   current?: boolean;
-  description?: string;
-  createdAt: string;
-  updatedAt: string;
+  createdAt?: string;
+  updatedAt?: string;
 };
 
-function toFilterFormula(draftId: string) {
-  return `{draftId} = ${JSON.stringify(draftId)}`;
+type EducationRecord = {
+  id: string;
+  schoolName: string;
+  faculty: string;
+  start: string;
+  end: string;
+  present: boolean;
+};
+
+function sanitizeId(id: string) {
+  return id.replace(/'/g, "\\'");
 }
 
-function chunk<T>(values: T[], size: number): T[][] {
+function toFilterFormula(id: string) {
+  const sanitized = sanitizeId(id);
+  return `OR({resumeId}='${sanitized}', {draftId}='${sanitized}')`;
+}
+
+function chunk<T>(values: T[], size: number) {
   const result: T[][] = [];
   for (let index = 0; index < values.length; index += size) {
     result.push(values.slice(index, index + size));
@@ -33,16 +54,18 @@ function chunk<T>(values: T[], size: number): T[][] {
   return result;
 }
 
-function normalizeRecord(record: AirtableRecord<EducationFields>) {
-  const { fields, id } = record;
+function normalizeRecord(record: AirtableRecord<EducationFields>): EducationRecord {
+  const { id, fields } = record;
+  const present = Boolean(fields.present ?? fields.current);
+  const endValue = present ? "" : typeof fields.end === "string" ? fields.end : "";
+
   return {
     id,
-    school: fields.school ?? "",
-    degree: fields.degree ?? "",
-    start: fields.start ?? "",
-    end: fields.end ?? "",
-    current: Boolean(fields.current),
-    description: fields.description ?? "",
+    schoolName: fields.schoolName ?? fields.school ?? "",
+    faculty: fields.faculty ?? fields.degree ?? "",
+    start: typeof fields.start === "string" ? fields.start : "",
+    end: endValue,
+    present,
   };
 }
 
@@ -57,21 +80,25 @@ function serverError(error: unknown) {
 
 export async function GET(req: NextRequest) {
   try {
-    const draftId = req.nextUrl.searchParams.get("draftId");
-    if (!draftId) {
-      return badRequest("draftId is required");
+    const search = req.nextUrl.searchParams;
+    const resumeId = search.get("resumeId") ?? search.get("draftId");
+    if (!resumeId) {
+      return badRequest("resumeId is required");
     }
 
     const records = await listAirtableRecords<EducationFields>(TABLE_NAME, {
-      filterByFormula: toFilterFormula(draftId),
+      filterByFormula: toFilterFormula(resumeId),
       fields: [
+        "resumeId",
         "draftId",
+        "schoolName",
+        "faculty",
         "school",
         "degree",
         "start",
         "end",
+        "present",
         "current",
-        "description",
       ],
     });
 
@@ -80,6 +107,7 @@ export async function GET(req: NextRequest) {
       items: records.map((record) => normalizeRecord(record)),
     });
   } catch (error) {
+    console.error("Failed to fetch education records", error);
     return serverError(error);
   }
 }
@@ -91,11 +119,14 @@ export async function POST(req: NextRequest) {
       return badRequest("Invalid JSON body");
     }
 
-    const draftId = (body as { draftId?: unknown }).draftId;
-    const items = (body as { items?: unknown }).items;
-    if (typeof draftId !== "string" || !draftId) {
-      return badRequest("draftId is required");
+    const resumeIdInput = (body as { resumeId?: unknown; draftId?: unknown }).resumeId ??
+      (body as { draftId?: unknown }).draftId;
+    if (typeof resumeIdInput !== "string" || !resumeIdInput) {
+      return badRequest("resumeId is required");
     }
+    const resumeId = resumeIdInput;
+
+    const items = (body as { items?: unknown }).items;
     if (!Array.isArray(items)) {
       return badRequest("items must be an array");
     }
@@ -106,8 +137,8 @@ export async function POST(req: NextRequest) {
     }
 
     const existing = await listAirtableRecords<EducationFields>(TABLE_NAME, {
-      filterByFormula: toFilterFormula(draftId),
-      fields: ["draftId"],
+      filterByFormula: toFilterFormula(resumeId),
+      fields: ["resumeId", "draftId"],
     });
 
     if (existing.length) {
@@ -122,27 +153,30 @@ export async function POST(req: NextRequest) {
     }
 
     const now = new Date().toISOString();
-    const payload = parsed.data.map((item) => {
-      const fields: EducationFields = {
-        draftId,
-        school: item.school,
-        degree: item.degree ?? "",
+    const payload = parsed.data.map((item) => ({
+      fields: {
+        resumeId,
+        draftId: resumeId,
+        schoolName: item.schoolName,
+        faculty: item.faculty ?? "",
+        school: item.schoolName,
+        degree: item.faculty ?? "",
         start: item.start,
-        end: item.current ? "" : item.end ?? "",
-        current: Boolean(item.current),
-        description: item.description ?? "",
+        end: item.present ? "" : item.end ?? "",
+        present: Boolean(item.present),
+        current: Boolean(item.present),
         createdAt: now,
         updatedAt: now,
-      };
-      return { fields };
-    });
+      },
+    }));
 
     for (const group of chunk(payload, WRITE_BATCH_SIZE)) {
-      await createAirtableRecords<EducationFields>(TABLE_NAME, group);
+      await createAirtableRecords(TABLE_NAME, group);
     }
 
     return NextResponse.json({ ok: true, count: parsed.data.length });
   } catch (error) {
+    console.error("Failed to save education records", error);
     return serverError(error);
   }
 }
@@ -154,7 +188,11 @@ export async function DELETE(req: NextRequest) {
 
     if (!id) {
       const body = await req.json().catch(() => null);
-      if (body && typeof body === "object" && typeof (body as { id?: unknown }).id === "string") {
+      if (
+        body &&
+        typeof body === "object" &&
+        typeof (body as { id?: unknown }).id === "string"
+      ) {
         id = (body as { id: string }).id;
       }
     }
@@ -166,6 +204,7 @@ export async function DELETE(req: NextRequest) {
     await deleteAirtableRecords(TABLE_NAME, [id]);
     return NextResponse.json({ ok: true });
   } catch (error) {
+    console.error("Failed to delete education record", error);
     return serverError(error);
   }
 }
