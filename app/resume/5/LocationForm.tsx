@@ -11,6 +11,8 @@ import {
 } from "react";
 import type { ChangeEvent, FormEvent } from "react";
 
+import type { ZodError } from "zod";
+
 import { createPreferredLocationSchema } from "../../../lib/validation/schemas";
 
 type Option = { value: string; label: string };
@@ -29,6 +31,12 @@ type ResumeResponse = {
 
 const STORAGE_KEY = "resume.resumeId";
 const ERROR_MESSAGE = "希望勤務地を選択してください";
+
+function extractValidationMessage(
+  error: ZodError<{ preferredLocation: string }>
+): string {
+  return error.flatten().fieldErrors.preferredLocation?.[0] ?? ERROR_MESSAGE;
+}
 
 function normalizeOptions(payload: LookupResponse): Option[] {
   const result: Option[] = [];
@@ -280,9 +288,7 @@ export default function LocationForm() {
     if (validation.success) {
       setFieldError(null);
     } else {
-      const message =
-        validation.error.formErrors.fieldErrors.preferredLocation?.[0] || ERROR_MESSAGE;
-      setFieldError(message);
+      setFieldError(extractValidationMessage(validation.error));
     }
   }, [touched, validation]);
 
@@ -296,9 +302,7 @@ export default function LocationForm() {
         if (result.success) {
           setFieldError(null);
         } else {
-          const message =
-            result.error.formErrors.fieldErrors.preferredLocation?.[0] || ERROR_MESSAGE;
-          setFieldError(message);
+          setFieldError(extractValidationMessage(result.error));
         }
       }
     },
@@ -311,9 +315,7 @@ export default function LocationForm() {
     }
     const result = schema.safeParse({ preferredLocation: value });
     if (!result.success) {
-      const message =
-        result.error.formErrors.fieldErrors.preferredLocation?.[0] || ERROR_MESSAGE;
-      setFieldError(message);
+      setFieldError(extractValidationMessage(result.error));
       return;
     }
     setFieldError(null);
@@ -330,9 +332,7 @@ export default function LocationForm() {
       setTouched(true);
       const result = schema.safeParse({ preferredLocation: value });
       if (!result.success) {
-        const message =
-          result.error.formErrors.fieldErrors.preferredLocation?.[0] || ERROR_MESSAGE;
-        setFieldError(message);
+        setFieldError(extractValidationMessage(result.error));
         return;
       }
       if (!resumeId) {
