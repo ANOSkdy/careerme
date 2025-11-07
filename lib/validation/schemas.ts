@@ -18,21 +18,21 @@ function createDobNumberSchema({
   rangeMessage: string;
 }) {
   const stringInput = z
-    .string({ required_error: requiredMessage })
+    .string({ error: requiredMessage })
     .trim()
-    .min(1, requiredMessage)
+    .min(1, { message: requiredMessage })
     .regex(digitPattern, { message: invalidMessage })
     .transform((value) => Number(value));
 
   const numberInput = z
-    .number({ invalid_type_error: invalidMessage })
+    .number({ error: invalidMessage })
     .refine((value) => Number.isInteger(value), { message: invalidMessage });
 
   return z
     .union([stringInput, numberInput])
     .pipe(
       z
-        .number({ invalid_type_error: invalidMessage })
+        .number({ error: invalidMessage })
         .min(min, { message: rangeMessage })
         .max(max, { message: rangeMessage })
     );
@@ -79,9 +79,9 @@ export const DobSchema = z
 
 function requiredName(message: string) {
   return z
-    .string({ required_error: message })
+    .string({ error: message })
     .trim()
-    .min(1, message)
+    .min(1, { message })
     .max(100, "100文字以内で入力してください");
 }
 
