@@ -125,15 +125,17 @@ export const ResumeStatusSchema = z.object({
 export type ResumeStatus = z.infer<typeof ResumeStatusSchema>;
 
 const yearMonthSchema = z
-  .string({ required_error: "年月を入力してください" })
+  .string({ error: "年月を入力してください" })
+  .trim()
+  .min(1, { message: "年月を入力してください" })
   .regex(/^[0-9]{4}-(0[1-9]|1[0-2])$/u, "YYYY-MM形式で入力してください");
 
 export const EducationItemSchema = z
   .object({
     schoolName: z
-      .string({ required_error: "学校名を入力してください" })
+      .string({ error: "学校名を入力してください" })
       .trim()
-      .min(1, "学校名を入力してください")
+      .min(1, { message: "学校名を入力してください" })
       .max(120, "120文字以内で入力してください"),
     faculty: z
       .string()
