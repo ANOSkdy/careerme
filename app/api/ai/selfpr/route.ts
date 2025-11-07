@@ -1,98 +1,90 @@
-export const runtime = 'nodejs';
+export const runtime = "nodejs";
 
-import { NextRequest, NextResponse } from 'next/server';
-import { z } from 'zod';
+import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 
-import { generateGeminiText } from '../../../../lib/ai/gemini';
-import { updateResumeDraft } from '../../../../lib/db/resumes';
+import { generateGeminiText } from "../../../../lib/ai/gemini";
+import { buildSelfPrPrompt } from "../../../../lib/ai/promptTemplates";
+import { CvQaSchema } from "../../../../lib/validation/schemas";
+
+const extrasSchema = z.object({
+  experienceSummary: z.string().trim().min(1).max(1200).optional(),
+});
 
 const requestSchema = z.object({
-  resumeId: z.string().min(1, 'resumeId is required'),
-  locale: z.string().min(2).max(5).optional(),
-  tone: z.enum(['business', 'friendly', 'formal']).optional(),
-  years: z.number().nonnegative().optional(),
-  role: z.string().min(1).optional(),
-  skills: z.array(z.string().min(1)).max(20).optional(),
-  achievements: z.array(z.string().min(1)).max(20).optional(),
-  extraNotes: z.string().max(1000).optional(),
+  resumeId: z.string().min(1, "resumeId is required"),
+  qa: CvQaSchema,
+  extras: extrasSchema.optional(),
 });
 
 type RequestPayload = z.infer<typeof requestSchema>;
 
-function buildPrompt({
-  locale = 'ja',
-  tone = 'business',
-  years,
-  role,
-  skills,
-  achievements,
-  extraNotes,
-}: RequestPayload): string {
-  const lines: string[] = [
-    `You are a writing assistant. Output language: ${locale}.`,
-    'Task: Compose a Japanese self-promotion paragraph (自己PR).',
-    'Target length: 400–800 Japanese characters.',
-    `Tone: ${tone}.`,
-    'Guidelines:',
-    '- Begin with a single-sentence value proposition.',
-    '- Highlight 2–3 strengths with measurable or concrete outcomes.',
-    '- Avoid buzzwords, cliches, or repetition.',
-    '- Conclude with a forward-looking statement about future contributions.',
-    'Context:',
-  ];
+type ErrorBody = {
+  ok: false;
+  error: { message: string };
+};
 
-  if (role) lines.push(`■ロール: ${role}`);
-  if (typeof years === 'number') lines.push(`■経験年数: 約${years}年`);
-  if (skills?.length) lines.push(`■スキル: ${skills.join(', ')}`);
-  if (achievements?.length)
-    lines.push(`■実績: ${achievements.join(' / ')}`);
-  if (extraNotes) lines.push(`■補足: ${extraNotes}`);
+type SuccessBody = {
+  ok: true;
+  text: string;
+  saved: boolean;
+  warn?: string;
+};
 
-  return lines.join('\n');
+function json<T>(body: T, status: number) {
+  return NextResponse.json(body, { status });
 }
 
 export async function POST(req: NextRequest) {
   let payload: RequestPayload;
   try {
-    payload = requestSchema.parse(await req.json());
+    const jsonBody = await req.json();
+    payload = requestSchema.parse(jsonBody);
   } catch (error) {
     const message =
       error instanceof z.ZodError
-        ? error.issues.map((issue) => issue.message).join(', ')
-        : (error as Error).message;
-    return NextResponse.json(
-      { ok: false, error: { message } },
-      { status: 400 }
-    );
+        ? error.issues.map((issue) => issue.message).join(", ")
+        : error instanceof Error
+          ? error.message
+          : "Invalid request";
+    return json<ErrorBody>({ ok: false, error: { message } }, 400);
   }
 
   try {
-    const prompt = buildPrompt(payload);
+    const prompt = buildSelfPrPrompt(payload.qa, payload.extras);
     const text = await generateGeminiText({
       prompt,
-      temperature: 0.7,
+      temperature: 0.4,
       maxOutputTokens: 768,
     });
 
+    let saved = false;
+    let warn: string | undefined;
+
     try {
-      await updateResumeDraft(payload.resumeId, { selfpr_draft: text });
-      return NextResponse.json({
-        ok: true,
-        text,
-        saved: true,
-        resumeId: payload.resumeId,
+      const response = await fetch(`${req.nextUrl.origin}/api/data/resume`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ id: payload.resumeId, selfPr: text }),
+        cache: "no-store",
       });
-    } catch (airtableError) {
-      return NextResponse.json({
-        ok: true,
-        text,
-        saved: false,
-        resumeId: payload.resumeId,
-        warn: airtableError instanceof Error ? airtableError.message : String(airtableError),
-      });
+
+      if (!response.ok) {
+        const detail = await response.text();
+        throw new Error(
+          detail ? `Failed to save selfPr: ${detail}` : `Failed to save selfPr (${response.status})`
+        );
+      }
+
+      saved = true;
+    } catch (error) {
+      warn = error instanceof Error ? error.message : String(error);
     }
+
+    return json<SuccessBody>({ ok: true, text, saved, warn }, 200);
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    return NextResponse.json({ ok: false, error: { message } }, { status: 500 });
+    const message = error instanceof Error ? error.message : "Unexpected error";
+    console.error("[api/ai/selfpr] generation failed", error);
+    return json<ErrorBody>({ ok: false, error: { message } }, 500);
   }
 }

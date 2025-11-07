@@ -4,6 +4,24 @@ const currentYear = new Date().getFullYear();
 
 const digitPattern = /^[0-9]+$/u;
 
+const qaMessageMin = "10文字以上で入力してください";
+const qaMessageMax = "600文字以内で入力してください";
+
+const qaFieldSchema = z
+  .string()
+  .trim()
+  .min(10, qaMessageMin)
+  .max(600, qaMessageMax);
+
+export const CvQaSchema = z.object({
+  q1: qaFieldSchema,
+  q2: qaFieldSchema,
+  q3: qaFieldSchema,
+  q4: qaFieldSchema,
+});
+
+export type CvQa = z.infer<typeof CvQaSchema>;
+
 function createDobNumberSchema({
   min,
   max,
@@ -227,6 +245,8 @@ export const ExperienceListSchema = z
 
 export const ResumeSchema = z.object({
   certifications: z.array(z.string()).optional(),
+  qa: CvQaSchema.optional(),
+  selfPr: z.string().max(2000).optional(),
 });
 
 export type Resume = z.infer<typeof ResumeSchema>;
