@@ -251,11 +251,14 @@ export function createPreferredLocationSchema(options: readonly string[]) {
     });
   }
 
-  const [first, ...rest] = normalized;
+  const allowedValues = new Set(normalized);
+
   return z.object({
-    preferredLocation: z.enum([first, ...rest] as [string, ...string[]], {
-      errorMap: () => ({ message: preferredLocationMessage }),
-    }),
+    preferredLocation: z
+      .string({ error: preferredLocationMessage })
+      .refine((value) => allowedValues.has(value), {
+        message: preferredLocationMessage,
+      }),
   });
 }
 
