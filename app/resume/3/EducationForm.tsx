@@ -164,13 +164,16 @@ export default function EducationForm() {
   const [rowErrors, setRowErrors] = useState<RowErrors>({});
   const [listError, setListError] = useState<string | null>(null);
   const [finalEducation, setFinalEducation] = useState<FinalEducation | "">("");
+  const [focusedFinalEducation, setFocusedFinalEducation] = useState<FinalEducation | null>(
+    null
+  );
   const [finalTouched, setFinalTouched] = useState(false);
   const [resumeId, setResumeId] = useState<string | null>(null);
   const resumeIdRef = useRef<string | null>(null);
   const resumeStatusRef = useRef<ResumeStatusSnapshot | null>(null);
   const [saveState, setSaveState] = useState<SaveState>("idle");
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [isHydrating, setIsHydrating] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -207,7 +210,7 @@ export default function EducationForm() {
 
     let cancelled = false;
     const controller = new AbortController();
-    setLoading(true);
+    setIsHydrating(true);
     setLoadError(null);
 
     (async () => {
@@ -249,16 +252,17 @@ export default function EducationForm() {
         const snapshot = parseResumeStatusNote(resumeJson?.step2?.note ?? null);
         resumeStatusRef.current = snapshot;
         setFinalEducation(snapshot?.finalEducation ?? "");
+        setFocusedFinalEducation(null);
         setFinalTouched(false);
         setSubmitError(null);
         setSaveState("idle");
-        setLoading(false);
+        setIsHydrating(false);
       } catch (error) {
         if ((error as Error).name === "AbortError") return;
         console.error("Failed to load education data", error);
         if (!cancelled) {
           setLoadError("学歴情報の取得に失敗しました");
-          setLoading(false);
+          setIsHydrating(false);
         }
       }
     })();
@@ -422,19 +426,19 @@ export default function EducationForm() {
     [updateItems]
   );
 
-  const handleFinalEducationChange = useCallback((event: ChangeEvent<HTMLSelectElement>) => {
+  const handleFinalEducationChange = useCallback((event: ChangeEvent<HTMLInputElement>) => {
     setFinalTouched(true);
     setFinalEducation(event.target.value as FinalEducation | "");
   }, []);
 
   const nextDisabled =
-    loading || isSubmitting || finalEducation === "" || Boolean(listError);
+    isHydrating || isSubmitting || finalEducation === "" || Boolean(listError);
 
   const infoMessage = useMemo(() => {
-    if (loading) return "入力済みの学歴を読み込み中です";
+    if (isHydrating) return "入力済みの学歴を読み込み中です";
     if (loadError) return loadError;
     return null;
-  }, [loadError, loading]);
+  }, [isHydrating, loadError]);
 
   const handleSubmit = useCallback(
     async (event: FormEvent<HTMLFormElement>) => {
@@ -533,7 +537,7 @@ export default function EducationForm() {
             {submitError}
           </p>
         )}
-        {listError && !loading && (
+        {listError && !isHydrating && (
           <div
             role="alert"
             style={{
@@ -552,38 +556,80 @@ export default function EducationForm() {
       </div>
 
       <div style={{ marginBottom: "24px" }}>
-        <label
-          htmlFor="finalEducation"
+        <span
+          id="final-education-label"
           style={{ display: "block", fontWeight: 600, marginBottom: "8px" }}
         >
           最終学歴 <span aria-hidden="true" style={{ color: "#ef4444" }}>*</span>
-        </label>
-        <select
-          id="finalEducation"
-          value={finalEducation}
-          onChange={handleFinalEducationChange}
-          onBlur={() => setFinalTouched(true)}
+        </span>
+        <div
+          role="radiogroup"
+          aria-labelledby="final-education-label"
           aria-invalid={finalTouched && finalEducation === ""}
-          aria-describedby={finalTouched && finalEducation === "" ? "error-finalEducation" : undefined}
-          disabled={loading}
+          aria-describedby={
+            finalTouched && finalEducation === "" ? "error-finalEducation" : undefined
+          }
           style={{
-            width: "100%",
-            borderRadius: "8px",
-            border: "1px solid var(--color-border, #d1d5db)",
-            padding: "10px 12px",
-            fontSize: "1rem",
-            backgroundColor: "#fff",
+            display: "grid",
+            gap: "8px",
+            gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))",
           }}
         >
-          <option value="" disabled>
-            選択してください
-          </option>
-          {finalEducationOptions.map((option) => (
-            <option key={option} value={option}>
-              {option}
-            </option>
-          ))}
-        </select>
+          {finalEducationOptions.map((option) => {
+            const checked = finalEducation === option;
+            const isFocused = focusedFinalEducation === option;
+            return (
+              <label
+                key={option}
+                style={{
+                  position: "relative",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  borderRadius: "9999px",
+                  border: checked
+                    ? "2px solid var(--color-primary, #2563eb)"
+                    : isFocused
+                      ? "2px solid rgba(37, 99, 235, 0.6)"
+                      : "1px solid var(--color-border, #d1d5db)",
+                  padding: "10px 14px",
+                  backgroundColor: checked ? "rgba(37, 99, 235, 0.08)" : "#ffffff",
+                  color: checked
+                    ? "var(--color-primary, #2563eb)"
+                    : "var(--color-text-strong, #111827)",
+                  fontWeight: 600,
+                  cursor: "pointer",
+                  fontSize: "0.95rem",
+                  transition: "border-color 0.2s ease, background-color 0.2s ease",
+                  boxShadow: isFocused
+                    ? "0 0 0 4px rgba(37, 99, 235, 0.15)"
+                    : "none",
+                }}
+              >
+                <input
+                  type="radio"
+                  name="finalEducation"
+                  value={option}
+                  checked={checked}
+                  onChange={handleFinalEducationChange}
+                  onFocus={() => setFocusedFinalEducation(option)}
+                  onBlur={() => {
+                    setFinalTouched(true);
+                    setFocusedFinalEducation(null);
+                  }}
+                  disabled={isSubmitting}
+                  style={{
+                    position: "absolute",
+                    inset: 0,
+                    opacity: 0,
+                    cursor: "pointer",
+                  }}
+                />
+                {option}
+              </label>
+            );
+          })}
+        </div>
         {finalTouched && finalEducation === "" && (
           <p
             id="error-finalEducation"
@@ -633,7 +679,7 @@ export default function EducationForm() {
                     onBlur={handleItemBlur}
                     aria-invalid={Boolean(errors.schoolName)}
                     aria-describedby={errors.schoolName ? `${rowId}-school-error` : undefined}
-                    disabled={loading}
+                    disabled={isSubmitting}
                     style={{
                       marginTop: "4px",
                       width: "100%",
@@ -663,7 +709,7 @@ export default function EducationForm() {
                     value={item.faculty}
                     onChange={handleItemChange(index, "faculty")}
                     onBlur={handleItemBlur}
-                    disabled={loading}
+                    disabled={isSubmitting}
                     style={{
                       marginTop: "4px",
                       width: "100%",
@@ -686,7 +732,7 @@ export default function EducationForm() {
                     onBlur={handleItemBlur}
                     aria-invalid={Boolean(errors.start)}
                     aria-describedby={errors.start ? `${rowId}-start-error` : undefined}
-                    disabled={loading}
+                    disabled={isSubmitting}
                     style={{
                       marginTop: "4px",
                       width: "100%",
@@ -718,7 +764,7 @@ export default function EducationForm() {
                     onBlur={handleItemBlur}
                     aria-invalid={Boolean(errors.end)}
                     aria-describedby={errors.end ? `${rowId}-end-error` : undefined}
-                    disabled={loading || item.present}
+                    disabled={isSubmitting || item.present}
                     style={{
                       marginTop: "4px",
                       width: "100%",
@@ -750,7 +796,7 @@ export default function EducationForm() {
                       type="checkbox"
                       checked={item.present}
                       onChange={handlePresentChange(index)}
-                      disabled={loading}
+                      disabled={isSubmitting}
                     />
                     在学中 (終了年月なし)
                   </label>
@@ -770,7 +816,7 @@ export default function EducationForm() {
                     color: "#1f2937",
                     cursor: "pointer",
                   }}
-                  disabled={loading && items.length === 1}
+                  disabled={isSubmitting && items.length === 1}
                 >
                   削除
                 </button>
@@ -801,7 +847,7 @@ export default function EducationForm() {
             color: "#fff",
             cursor: "pointer",
           }}
-          disabled={loading}
+          disabled={isSubmitting}
         >
           学校を追加
         </button>
