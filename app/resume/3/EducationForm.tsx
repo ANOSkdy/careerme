@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   useCallback,
@@ -13,6 +12,7 @@ import {
 } from "react";
 
 import AutoSaveBadge from "../_components/AutoSaveBadge";
+import StepNav from "../_components/StepNav";
 import type { SaveState } from "../_components/hooks/useAutoSave";
 import {
   EducationItemSchema,
@@ -503,16 +503,7 @@ export default function EducationForm() {
   return (
     <form onSubmit={handleSubmit} aria-describedby={infoMessage ? "education-status" : undefined}>
       <div style={{ marginBottom: "24px" }}>
-        <h1
-          style={{
-            fontSize: "1.5rem",
-            fontWeight: 600,
-            color: "var(--color-text-strong, #111827)",
-            marginBottom: "12px",
-          }}
-        >
-          学歴
-        </h1>
+        <h2 className="resume-page-title">学歴</h2>
         <p style={{ fontSize: "0.875rem", color: "var(--color-text-muted, #6b7280)" }}>
           在籍期間と学校名を入力してください。入力内容はフィールドから離れたタイミングで自動保存されます。
         </p>
@@ -854,46 +845,7 @@ export default function EducationForm() {
         <AutoSaveBadge state={saveState} />
       </div>
 
-      <div
-        style={{
-          marginTop: "32px",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          gap: "12px",
-        }}
-      >
-        <Link
-          href="/resume/2"
-          style={{
-            padding: "10px 20px",
-            borderRadius: "8px",
-            border: "1px solid #d1d5db",
-            textDecoration: "none",
-            color: "#1f2937",
-            backgroundColor: "#fff",
-            fontSize: "0.9rem",
-          }}
-        >
-          戻る
-        </Link>
-        <button
-          type="submit"
-          disabled={nextDisabled}
-          style={{
-            padding: "10px 24px",
-            borderRadius: "8px",
-            border: "none",
-            backgroundColor: "var(--color-primary, #2563eb)",
-            color: "#fff",
-            fontSize: "0.95rem",
-            opacity: nextDisabled ? 0.6 : 1,
-            cursor: nextDisabled ? "not-allowed" : "pointer",
-          }}
-        >
-          次へ
-        </button>
-      </div>
+      <StepNav step={3} nextType="submit" nextDisabled={nextDisabled} />
     </form>
   );
 }

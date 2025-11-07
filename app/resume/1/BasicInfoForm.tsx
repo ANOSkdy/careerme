@@ -8,6 +8,7 @@ import {
   BasicInfoPartialSchema,
   BasicInfoSchema,
 } from "../../../lib/validation/schemas";
+import StepNav from "../_components/StepNav";
 
 const STORAGE_KEY = "resume.resumeId";
 
@@ -338,18 +339,9 @@ export default function BasicInfoForm() {
   return (
     <form onSubmit={handleSubmit} style={{ display: "grid", gap: "24px" }}>
       <div>
-        <h1
-          style={{
-            fontSize: "1.5rem",
-            fontWeight: 600,
-            color: "var(--color-text, #333333)",
-            marginBottom: "16px",
-          }}
-        >
-          基本情報
-        </h1>
+        <h2 className="resume-page-title">基本情報</h2>
         <p style={{ color: "var(--color-secondary, #6b7280)", fontSize: "0.875rem" }}>
-          氏名と生年月日を入力してください。必要事項の入力後、「Next」で次に進めます。
+          氏名と生年月日を入力してください。必要事項の入力後、「次へ」で次に進めます。
         </p>
       </div>
 
@@ -574,32 +566,23 @@ export default function BasicInfoForm() {
         )}
       </div>
 
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: "12px" }}>
-        <div aria-live="polite" style={{ fontSize: "0.75rem", color: "var(--color-secondary, #6b7280)" }}>
-          {saveState === "saving" && "保存中…"}
-          {saveState === "saved" && "保存しました"}
-          {saveState === "error" && "保存に失敗しました"}
-        </div>
-        <button
-          type="submit"
-          disabled={nextDisabled}
-          style={{
-            padding: "12px 24px",
-            borderRadius: "9999px",
-            border: "none",
-            backgroundColor: nextDisabled
-              ? "rgba(58, 117, 196, 0.4)"
-              : "var(--color-primary, #3A75C4)",
-            color: "#ffffff",
-            fontWeight: 700,
-            fontSize: "1rem",
-            cursor: nextDisabled ? "not-allowed" : "pointer",
-            transition: "background-color 0.2s ease",
-          }}
-        >
-          {isSubmitting ? "送信中…" : "Next"}
-        </button>
+      <div
+        aria-live="polite"
+        style={{
+          fontSize: "0.75rem",
+          color: "var(--color-secondary, #6b7280)",
+        }}
+      >
+        {saveState === "saving" && "保存中…"}
+        {saveState === "saved" && "保存しました"}
+        {saveState === "error" && "保存に失敗しました"}
       </div>
+      <StepNav
+        step={1}
+        nextType="submit"
+        nextDisabled={nextDisabled}
+        nextLabel={isSubmitting ? "送信中…" : "次へ"}
+      />
     </form>
   );
 }

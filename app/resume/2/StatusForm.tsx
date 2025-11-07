@@ -270,16 +270,7 @@ export default function StatusForm() {
   return (
     <form aria-describedby={loadError ? "status-load-error" : undefined}>
       <div style={{ marginBottom: "24px" }}>
-        <h2
-          style={{
-            fontSize: "1.5rem",
-            fontWeight: 600,
-            color: "var(--color-text-strong, #111827)",
-            marginBottom: "8px",
-          }}
-        >
-          就学状況
-        </h2>
+        <h2 className="resume-page-title">就学状況</h2>
         <p style={{ color: "var(--color-text-muted, #6b7280)", fontSize: "0.875rem" }}>
           入力内容はフィールドから離れたタイミングで自動保存されます。
         </p>
