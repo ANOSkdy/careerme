@@ -20,6 +20,7 @@ import {
   EducationItemSchema,
   EducationListSchema,
 } from "../../../lib/validation/schemas";
+import type { z } from "zod";
 
 const finalEducationOptions = [
   "院卒",
@@ -33,13 +34,7 @@ const finalEducationOptions = [
 
 type FinalEducation = (typeof finalEducationOptions)[number];
 
-type EducationItem = {
-  schoolName: string;
-  faculty: string;
-  start: string;
-  end: string;
-  present: boolean;
-};
+type EducationItem = z.infer<typeof EducationItemSchema>;
 
 type RowErrors = Record<number, Partial<Record<keyof EducationItem, string>>>;
 
