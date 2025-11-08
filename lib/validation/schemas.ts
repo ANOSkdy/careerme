@@ -198,6 +198,46 @@ export const HighestEducationSchema = z.enum([
   "その他",
 ]);
 
+const workYearMonthSchema = z
+  .string({ error: "年月を入力してください" })
+  .trim()
+  .min(1, { message: "年月を入力してください" })
+  .regex(/^[0-9]{4}-(0[1-9]|1[0-2])$/u, "YYYY-MM形式で入力してください");
+
+export const WorkRowSchema = z
+  .object({
+    company: z
+      .string({ error: "会社名を入力してください" })
+      .trim()
+      .min(1, { message: "会社名を入力してください" })
+      .max(120, "120文字以内で入力してください"),
+    startYm: workYearMonthSchema,
+    endYm: workYearMonthSchema.optional(),
+    division: z
+      .string()
+      .trim()
+      .max(120, "120文字以内で入力してください")
+      .optional(),
+    title: z
+      .string()
+      .trim()
+      .max(120, "120文字以内で入力してください")
+      .optional(),
+  })
+  .superRefine((value, ctx) => {
+    if (value.endYm && value.endYm < value.startYm) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "退社年月は入社年月以降を入力してください",
+        path: ["endYm"],
+      });
+    }
+  });
+
+export const WorksFormSchema = z
+  .array(WorkRowSchema)
+  .min(1, "職歴を1件以上追加してください");
+
 export type HighestEducation = z.infer<typeof HighestEducationSchema>;
 
 const yearMonthValue = z
