@@ -219,8 +219,12 @@ export const WorkHistoryItemSchema = z
     }
   });
 
+const WorkHistoryItemWithIdSchema = WorkHistoryItemSchema.and(
+  z.object({ id: z.string().trim().min(1).optional() })
+);
+
 export const WorkHistoryListSchema = z
-  .array(WorkHistoryItemSchema.extend({ id: z.string().trim().min(1).optional() }))
+  .array(WorkHistoryItemWithIdSchema)
   .min(1, { message: "職歴を1件以上入力してください" });
 
 export type WorkHistoryItem = z.infer<typeof WorkHistoryItemSchema>;

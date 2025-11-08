@@ -302,12 +302,13 @@ export default function ResumeStep4Page() {
         const lookupRes = await fetch("/api/data/lookups", { cache: "force-cache" });
         if (lookupRes.ok) {
           const lookupJson = (await lookupRes.json()) as LookupResponse;
-          if (!cancelled && lookupJson?.options) {
+          const options = lookupJson?.options;
+          if (!cancelled && options) {
             setLookupOptions((prev) => ({
               ...prev,
-              roles: lookupJson.options.roles ?? prev.roles,
-              industries: lookupJson.options.industries ?? prev.industries,
-              qualifications: lookupJson.options.qualifications ?? prev.qualifications,
+              roles: options.roles ?? prev.roles,
+              industries: options.industries ?? prev.industries,
+              qualifications: options.qualifications ?? prev.qualifications,
             }));
           }
         }
