@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { isYearMonthOrderValid } from "../utils/date";
+
 const currentYear = new Date().getFullYear();
 
 const digitPattern = /^[0-9]+$/u;
@@ -171,6 +173,67 @@ const yearMonthSchema = z
   .trim()
   .min(1, { message: "年月を入力してください" })
   .regex(/^[0-9]{4}-(0[1-9]|1[0-2])$/u, "YYYY-MM形式で入力してください");
+
+export const YearMonthSchema = yearMonthSchema;
+
+const optionalShortTextSchema = z
+  .string()
+  .trim()
+  .max(120, "120文字以内で入力してください")
+  .optional()
+  .transform((value) => value ?? "");
+
+function optionalStringArraySchema(max: number) {
+  return z
+    .array(z.string().trim().min(1, "1文字以上で入力してください"))
+    .max(max, `${max}件以内で選択してください`)
+    .optional()
+    .transform((value) => (Array.isArray(value) ? value : []));
+}
+
+export const WorkHistoryItemSchema = z
+  .object({
+    company: z
+      .string({ error: "企業名を入力してください" })
+      .trim()
+      .min(1, { message: "企業名を入力してください" })
+      .max(160, "160文字以内で入力してください"),
+    division: optionalShortTextSchema,
+    title: optionalShortTextSchema,
+    startYm: yearMonthSchema,
+    endYm: z
+      .union([yearMonthSchema, z.literal("")])
+      .optional()
+      .transform((value) => (value ? value : undefined)),
+    roles: optionalStringArraySchema(10),
+    industries: optionalStringArraySchema(10),
+    qualifications: optionalStringArraySchema(10),
+  })
+  .superRefine((value, ctx) => {
+    if (value.endYm && !isYearMonthOrderValid(value.startYm, value.endYm)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["endYm"],
+        message: "終了年月は開始年月以降を選択してください",
+      });
+    }
+  });
+
+export const WorkHistoryListSchema = z
+  .array(WorkHistoryItemSchema.extend({ id: z.string().trim().min(1).optional() }))
+  .min(1, { message: "職歴を1件以上入力してください" });
+
+export type WorkHistoryItem = z.infer<typeof WorkHistoryItemSchema>;
+
+export type WorkHistoryListItem = z.infer<typeof WorkHistoryListSchema>[number];
+
+export const DesiredConditionsSchema = z.object({
+  locations: optionalStringArraySchema(5).transform((value) => value ?? []),
+  roles: optionalStringArraySchema(10).transform((value) => value ?? []),
+  industries: optionalStringArraySchema(10).transform((value) => value ?? []),
+});
+
+export type DesiredConditions = z.infer<typeof DesiredConditionsSchema>;
 
 export const EducationItemSchema = z
   .object({

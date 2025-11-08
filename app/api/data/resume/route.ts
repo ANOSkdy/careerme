@@ -16,11 +16,13 @@ import {
 import {
   BasicInfoSchema,
   CvQaSchema,
+  DesiredConditionsSchema,
   HighestEducationSchema,
   ResumeFreeTextSchema,
   ResumeStatusSchema,
   type BasicInfo,
   type CvQa,
+  type DesiredConditions,
   type HighestEducation,
   type ResumeStatus,
 } from "../../../../lib/validation/schemas";
@@ -31,28 +33,30 @@ const TABLE_NAME = process.env.AIRTABLE_TABLE_RESUME ?? "Resumes";
 const hasAirtable = hasAirtableConfig();
 const memoryStore = getMemoryStore();
 
-function findMemoryResume(id: string | null, anonKey: string | null): MemoryResumeRecord | null {
+type MemoryResumeWithDesired = MemoryResumeRecord & { desired?: DesiredConditions };
+
+function findMemoryResume(
+  id: string | null,
+  anonKey: string | null
+): MemoryResumeWithDesired | null {
   if (id && memoryStore.resumes.has(id)) {
-    return memoryStore.resumes.get(id) ?? null;
+    return (memoryStore.resumes.get(id) as MemoryResumeWithDesired | undefined) ?? null;
   }
   if (anonKey) {
     for (const record of memoryStore.resumes.values()) {
       if (record.anonKey === anonKey) {
-        return record;
+        return record as MemoryResumeWithDesired;
       }
     }
   }
   return null;
 }
 
-function writeMemoryResume(record: MemoryResumeRecord) {
+function writeMemoryResume(record: MemoryResumeWithDesired) {
   memoryStore.resumes.set(record.id, record);
 }
 
-function handleMemoryPost(
-  req: NextRequest,
-  payload: z.infer<typeof UpdatePayloadSchema>
-) {
+function handleMemoryPost(req: NextRequest, payload: z.infer<typeof UpdatePayloadSchema>) {
   const {
     id: bodyId,
     basicInfo,
@@ -61,6 +65,7 @@ function handleMemoryPost(
     qa,
     selfPr,
     summary,
+    desired,
     touch,
   } = payload;
   const anonCookie = readAnonKey(req);
@@ -75,7 +80,8 @@ function handleMemoryPost(
     typeof highestEducation !== "undefined" ||
     typeof qa !== "undefined" ||
     typeof selfPr !== "undefined" ||
-    typeof summary !== "undefined";
+    typeof summary !== "undefined" ||
+    typeof desired !== "undefined";
 
   if (!hasUpdates && !touch) {
     const response = NextResponse.json({ id: resumeId });
@@ -84,14 +90,14 @@ function handleMemoryPost(
   }
 
   const now = new Date().toISOString();
-  const baseRecord: MemoryResumeRecord = existing ?? {
+  const baseRecord: MemoryResumeWithDesired = existing ?? {
     id: resumeId,
     anonKey,
     createdAt: now,
     updatedAt: now,
   };
 
-  const updated: MemoryResumeRecord = {
+  const updated: MemoryResumeWithDesired = {
     ...baseRecord,
     updatedAt: now,
   };
@@ -114,6 +120,9 @@ function handleMemoryPost(
   if (typeof summary !== "undefined") {
     updated.summary = summary;
   }
+  if (typeof desired !== "undefined") {
+    updated.desired = desired;
+  }
 
   writeMemoryResume(updated);
 
@@ -131,6 +140,7 @@ const UpdatePayloadSchema = z
     qa: CvQaSchema.optional(),
     selfPr: ResumeFreeTextSchema.optional(),
     summary: ResumeFreeTextSchema.optional(),
+    desired: DesiredConditionsSchema.optional(),
     touch: z.boolean().optional(),
   })
   .superRefine((value, ctx) => {
@@ -141,7 +151,8 @@ const UpdatePayloadSchema = z
       typeof value.highestEducation !== "undefined" ||
       typeof value.qa !== "undefined" ||
       typeof value.selfPr !== "undefined" ||
-      typeof value.summary !== "undefined"
+      typeof value.summary !== "undefined" ||
+      typeof value.desired !== "undefined"
     ) {
       return;
     }
@@ -161,6 +172,7 @@ type ResumeFields = {
   qa?: string;
   selfPr?: string;
   summary?: string;
+  desired?: string;
   createdAt?: string;
   updatedAt?: string;
 };
@@ -209,6 +221,7 @@ async function findResumeRecord(id: string | null, anonKey: string | null) {
       "qa",
       "selfPr",
       "summary",
+      "desired",
     ],
     maxRecords: 1,
   });
@@ -238,6 +251,7 @@ export async function GET(req: NextRequest) {
         qa: record?.qa ?? null,
         selfPr: record?.selfPr ?? null,
         summary: record?.summary ?? null,
+        desired: record?.desired ?? null,
       });
 
       const anonKey = record?.anonKey ?? anonCookie ?? generateAnonKey();
@@ -260,6 +274,9 @@ export async function GET(req: NextRequest) {
       : null;
     const selfPr = typeof record?.fields.selfPr === "string" ? record.fields.selfPr : null;
     const summary = typeof record?.fields.summary === "string" ? record.fields.summary : null;
+    const desired = record?.fields.desired
+      ? parseJsonField<DesiredConditions>(record.fields.desired, DesiredConditionsSchema)
+      : null;
 
     const response = NextResponse.json({
       id: resumeId,
@@ -269,6 +286,7 @@ export async function GET(req: NextRequest) {
       qa,
       selfPr,
       summary,
+      desired,
     });
 
     const anonKey = record?.fields.anonKey ?? anonCookie ?? generateAnonKey();
@@ -297,16 +315,8 @@ export async function POST(req: NextRequest) {
       return handleMemoryPost(req, parsed.data);
     }
 
-    const {
-      id: bodyId,
-      basicInfo,
-      status,
-      highestEducation,
-      qa,
-      selfPr,
-      summary,
-      touch,
-    } = parsed.data;
+    const { id: bodyId, basicInfo, status, highestEducation, qa, selfPr, summary, desired, touch } =
+      parsed.data;
     const anonCookie = readAnonKey(req);
 
     const existingRecord = await findResumeRecord(bodyId ?? null, anonCookie);
@@ -325,7 +335,8 @@ export async function POST(req: NextRequest) {
       typeof highestEducation !== "undefined" ||
       typeof qa !== "undefined" ||
       typeof selfPr !== "undefined" ||
-      typeof summary !== "undefined";
+      typeof summary !== "undefined" ||
+      typeof desired !== "undefined";
 
     if (!hasUpdates && !touch) {
       const response = NextResponse.json({ id: resumeId });
@@ -358,6 +369,9 @@ export async function POST(req: NextRequest) {
     }
     if (typeof summary !== "undefined") {
       fields.summary = summary;
+    }
+    if (typeof desired !== "undefined") {
+      fields.desired = JSON.stringify(desired);
     }
 
     if (existingRecord) {
