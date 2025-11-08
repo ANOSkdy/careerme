@@ -635,20 +635,23 @@ export default function ResumeStep4Page() {
 
   return (
     <form onSubmit={handleSubmit} className="resume-form">
-      <div onClickCapture={handleNavClickCapture}>
-        <StepNav
-          step={4}
-          prevHref="/resume/3"
-          nextType="submit"
-          nextHref="/resume/5"
-          nextDisabled={nextDisabled}
-        />
-      </div>
-
-      <h1 className="resume-form__title">職歴</h1>
-      <p className="resume-form__description">
-        直近の職歴を入力してください。職歴は少なくとも1件が必要です。
-      </p>
+      <header className="resume-form__header">
+        <div className="resume-form__header-content">
+          <h1 className="resume-form__title">職歴</h1>
+          <p className="resume-form__description">
+            直近の職歴を入力してください。職歴は少なくとも1件が必要です。
+          </p>
+        </div>
+        <div className="resume-form__header-actions" onClickCapture={handleNavClickCapture}>
+          <StepNav
+            step={4}
+            prevHref="/resume/3"
+            nextType="submit"
+            nextHref="/resume/5"
+            nextDisabled={nextDisabled}
+          />
+        </div>
+      </header>
 
       {loadError && (
         <div className="resume-form__error" role="alert">
@@ -787,6 +790,37 @@ export default function ResumeStep4Page() {
       </button>
 
       <AutoSaveBadge state={saveState} />
+      <style jsx>{`
+        .resume-form__header {
+          display: grid;
+          gap: var(--space-md);
+        }
+
+        .resume-form__header-content {
+          display: grid;
+          gap: var(--space-xs);
+        }
+
+        .resume-form__header-actions {
+          width: 100%;
+        }
+
+        .resume-form__header-actions :global(.step-nav) {
+          margin-top: 0;
+        }
+
+        @media (min-width: 768px) {
+          .resume-form__header {
+            grid-template-columns: minmax(0, 1fr) auto;
+            align-items: center;
+          }
+
+          .resume-form__header-actions {
+            justify-self: end;
+            max-width: 360px;
+          }
+        }
+      `}</style>
     </form>
   );
 }
