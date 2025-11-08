@@ -46,13 +46,20 @@ export default function TagSelector({
     onChange([...selected, optionValue]);
   };
 
+  const selectionHint =
+    typeof maxSelections === "number"
+      ? `選択中 ${selected.length}/${maxSelections}`
+      : null;
+
   return (
     <div className="tag-selector">
       {label ? (
         <div className="tag-selector__label">
           <span>{label}</span>
           {maxSelections ? (
-            <span className="tag-selector__hint">最大{maxSelections}件</span>
+            <span className="tag-selector__hint">
+              最大{maxSelections}件{selectionHint ? `（${selectionHint}）` : ""}
+            </span>
           ) : null}
         </div>
       ) : null}
@@ -75,7 +82,7 @@ export default function TagSelector({
               aria-pressed={isSelected}
               aria-disabled={isDisabled}
               onClick={() => handleToggle(option.value)}
-              disabled={disabled}
+              disabled={isDisabled}
             >
               <span className="tag-selector__option-label">{option.label}</span>
               {isSelected ? <span aria-hidden="true">✓</span> : null}
