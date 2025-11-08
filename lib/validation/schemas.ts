@@ -188,6 +188,18 @@ export const EducationListSchema = z
   .array(EducationItemSchema)
   .min(1, "学歴を1件以上追加してください");
 
+export const HighestEducationSchema = z.enum([
+  "院卒",
+  "大卒",
+  "短大",
+  "専門",
+  "高専",
+  "高卒",
+  "その他",
+]);
+
+export type HighestEducation = z.infer<typeof HighestEducationSchema>;
+
 const yearMonthValue = z
   .string({ error: "年月を入力してください" })
   .trim()
