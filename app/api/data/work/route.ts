@@ -61,13 +61,14 @@ function getMemoryStore(): MemoryStore {
   return globalObj.__careermeWorkStore;
 }
 
-function sanitizeId(id: string) {
-  return id.replace(/'/g, "\\'");
+function sanitizeForFormula(value: string) {
+  return value.replace(/'/g, "\\'");
 }
 
-function toFilterFormula(resumeId: string) {
-  const sanitized = sanitizeId(resumeId);
-  return `{resumeId}='${sanitized}'`;
+function toFilterFormula(resumeId: string, env: string) {
+  const sanitizedResumeId = sanitizeForFormula(resumeId);
+  const sanitizedEnv = sanitizeForFormula(env);
+  return `AND({resumeId}='${sanitizedResumeId}',{source_env}='${sanitizedEnv}')`;
 }
 
 function badRequest(message: string) {
@@ -166,8 +167,9 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ ok: true, items });
     }
 
+    const env = getSourceEnv();
     const records = await listAirtableRecords<WorkFields>(TABLE_NAME, {
-      filterByFormula: toFilterFormula(resumeId),
+      filterByFormula: toFilterFormula(resumeId, env),
       fields: ["resumeId", "company", "startYm", "endYm", "division", "title"],
     });
 
