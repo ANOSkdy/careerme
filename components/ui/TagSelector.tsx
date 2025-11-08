@@ -15,6 +15,7 @@ export type TagSelectorProps = {
   label?: string;
   disabled?: boolean;
   helperText?: string;
+  showSelectionHint?: boolean;
 };
 
 function normalizeValue(value: string[]): string[] {
@@ -29,6 +30,7 @@ export default function TagSelector({
   label,
   disabled = false,
   helperText,
+  showSelectionHint = true,
 }: TagSelectorProps) {
   const selected = useMemo(() => normalizeValue(value), [value]);
   const selectedSet = useMemo(() => new Set(selected), [selected]);
@@ -47,7 +49,7 @@ export default function TagSelector({
   };
 
   const selectionHint =
-    typeof maxSelections === "number"
+    showSelectionHint && typeof maxSelections === "number"
       ? `選択中 ${selected.length}/${maxSelections}`
       : null;
 
@@ -56,9 +58,9 @@ export default function TagSelector({
       {label ? (
         <div className="tag-selector__label">
           <span>{label}</span>
-          {maxSelections ? (
+          {maxSelections && selectionHint ? (
             <span className="tag-selector__hint">
-              最大{maxSelections}件{selectionHint ? `（${selectionHint}）` : ""}
+              最大{maxSelections}件（{selectionHint}）
             </span>
           ) : null}
         </div>

@@ -46,9 +46,19 @@ type WorkFormRow = {
   roles: string[];
   industries: string[];
   qualifications: string[];
+  description: string;
 };
 
-type RowField = "company" | "startYm" | "endYm" | "roles" | "industries" | "qualifications";
+type RowField =
+  | "company"
+  | "division"
+  | "title"
+  | "startYm"
+  | "endYm"
+  | "roles"
+  | "industries"
+  | "qualifications"
+  | "description";
 
 type RowErrors = Partial<Record<RowField, string>>;
 
@@ -77,6 +87,7 @@ type WorkApiResponse = {
     roles?: string[];
     industries?: string[];
     qualifications?: string[];
+    description?: string;
   }>;
 };
 
@@ -100,6 +111,7 @@ function createEmptyRow(): WorkFormRow {
     roles: [],
     industries: [],
     qualifications: [],
+    description: "",
   };
 }
 
@@ -124,6 +136,7 @@ function normalizeServerRow(raw: unknown): WorkFormRow {
     roles: normalizeArray(source.roles),
     industries: normalizeArray(source.industries),
     qualifications: normalizeArray(source.qualifications),
+    description: typeof source.description === "string" ? source.description : "",
   };
 }
 
@@ -137,6 +150,7 @@ function serializeWorkData(data: WorkHistoryItem): string {
     roles: data.roles ?? [],
     industries: data.industries ?? [],
     qualifications: data.qualifications ?? [],
+    description: data.description ?? "",
   });
 }
 
@@ -151,6 +165,7 @@ function mapToSchemaInput(row: WorkFormRow) {
     roles: row.roles,
     industries: row.industries,
     qualifications: row.qualifications,
+    description: row.description,
   };
 }
 
@@ -375,6 +390,7 @@ export default function ResumeStep4Page() {
             roles: data.roles ?? [],
             industries: data.industries ?? [],
             qualifications: data.qualifications ?? [],
+            description: data.description ?? "",
           };
           const serialized = serializeWorkData(payload);
           if (id) {
@@ -569,6 +585,13 @@ export default function ResumeStep4Page() {
     [handleInputChange]
   );
 
+  const handleDescriptionChange = useCallback(
+    (event: ChangeEvent<HTMLTextAreaElement>, index: number) => {
+      handleInputChange(index, "description", event.target.value);
+    },
+    [handleInputChange],
+  );
+
   const handleStartChange = useCallback(
     (value: string, index: number) => {
       handleInputChange(index, "startYm", value);
@@ -712,7 +735,7 @@ export default function ResumeStep4Page() {
                     onChange={(values) => handleRolesChange(values, index)}
                     maxSelections={MAX_ROLES}
                     label="担当職種"
-                    helperText="最大10件まで選択できます"
+                    showSelectionHint={false}
                   />
                   {errors.roles && shouldShowError(row.key, "roles") ? (
                     <p className="form-error" role="alert">
@@ -727,7 +750,7 @@ export default function ResumeStep4Page() {
                     onChange={(values) => handleIndustriesChange(values, index)}
                     maxSelections={MAX_INDUSTRIES}
                     label="担当業界"
-                    helperText="最大10件まで選択できます"
+                    showSelectionHint={false}
                   />
                   {errors.industries && shouldShowError(row.key, "industries") ? (
                     <p className="form-error" role="alert">
@@ -742,11 +765,34 @@ export default function ResumeStep4Page() {
                     onChange={(values) => handleQualificationsChange(values, index)}
                     maxSelections={MAX_QUALIFICATIONS}
                     label="保有資格"
-                    helperText="最大10件まで選択できます"
+                    showSelectionHint={false}
                   />
                   {errors.qualifications && shouldShowError(row.key, "qualifications") ? (
                     <p className="form-error" role="alert">
                       {errors.qualifications}
+                    </p>
+                  ) : null}
+                </div>
+                <div className="form-field">
+                  <label htmlFor={`description-${row.key}`} className="form-label">
+                    業務内容
+                  </label>
+                  <textarea
+                    id={`description-${row.key}`}
+                    value={row.description}
+                    onChange={(event) => handleDescriptionChange(event, index)}
+                    onBlur={() => markTouched(row.key, "description")}
+                    className={`form-textarea${
+                      errors.description && shouldShowError(row.key, "description")
+                        ? " has-error"
+                        : ""
+                    }`}
+                    placeholder="担当業務や成果などを記載してください"
+                    rows={5}
+                  />
+                  {errors.description && shouldShowError(row.key, "description") ? (
+                    <p className="form-error" role="alert">
+                      {errors.description}
                     </p>
                   ) : null}
                 </div>

@@ -208,6 +208,13 @@ export const WorkHistoryItemSchema = z
     roles: optionalStringArraySchema(10),
     industries: optionalStringArraySchema(10),
     qualifications: optionalStringArraySchema(10),
+    description: z
+      .string()
+      .trim()
+      .max(2000, "2000文字以内で入力してください")
+      .optional()
+      .or(z.literal(""))
+      .transform((value) => (value ? value : undefined)),
   })
   .superRefine((value, ctx) => {
     if (value.endYm && !isYearMonthOrderValid(value.startYm, value.endYm)) {

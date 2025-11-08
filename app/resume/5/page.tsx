@@ -14,7 +14,7 @@ import AutoSaveBadge from "../_components/AutoSaveBadge";
 import StepNav from "../_components/StepNav";
 import type { SaveState } from "../_components/hooks/useAutoSave";
 import Modal from "../../../components/ui/Modal";
-import TagSelector, { type TagOption } from "../../../components/ui/TagSelector";
+import type { TagOption } from "../../../components/ui/TagSelector";
 import {
   DesiredConditionsSchema,
   type DesiredConditions,
@@ -63,6 +63,7 @@ export default function ResumeStep5Page() {
     industries: [],
   });
   const [locationsOpen, setLocationsOpen] = useState(false);
+  const [rolesOpen, setRolesOpen] = useState(false);
   const [industriesOpen, setIndustriesOpen] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -266,9 +267,21 @@ export default function ResumeStep5Page() {
     []
   );
 
-  const handleRolesChange = useCallback((values: string[]) => {
-    setDesired((prev) => ({ ...prev, roles: values.slice(0, MAX_ROLES) }));
-  }, []);
+  const toggleRole = useCallback(
+    (value: string) => {
+      setDesired((prev) => {
+        const exists = prev.roles.includes(value);
+        if (exists) {
+          return { ...prev, roles: prev.roles.filter((item) => item !== value) };
+        }
+        if (prev.roles.length >= MAX_ROLES) {
+          return prev;
+        }
+        return { ...prev, roles: [...prev.roles, value] };
+      });
+    },
+    []
+  );
 
   const handleSubmit = useCallback(
     async (event: FormEvent<HTMLFormElement>) => {
@@ -331,14 +344,11 @@ export default function ResumeStep5Page() {
         <section className="desired-section">
           <header className="desired-section__header">
             <h2>希望職種</h2>
+            <button type="button" className="button button--secondary" onClick={() => setRolesOpen(true)}>
+              選択する
+            </button>
           </header>
-          <TagSelector
-            options={lookupOptions.roles}
-            value={desired.roles}
-            onChange={handleRolesChange}
-            maxSelections={MAX_ROLES}
-            helperText="最大10件まで選択できます"
-          />
+          {renderChipGroup(desired.roles, lookupOptions.roles, toggleRole)}
         </section>
 
         <section className="desired-section">
@@ -393,6 +403,32 @@ export default function ResumeStep5Page() {
         </div>
         <div className="modal-actions">
           <button type="button" className="button button--primary" onClick={() => setLocationsOpen(false)}>
+            閉じる
+          </button>
+        </div>
+      </Modal>
+
+      <Modal open={rolesOpen} onClose={() => setRolesOpen(false)} title="希望職種">
+        <div className="modal-list">
+          {lookupOptions.roles.map((option) => {
+            const checked = desired.roles.includes(option.value);
+            const disabled = !checked && desired.roles.length >= MAX_ROLES;
+            return (
+              <label key={option.value} className={`modal-option${disabled ? " is-disabled" : ""}`}>
+                <input
+                  type="checkbox"
+                  value={option.value}
+                  checked={checked}
+                  disabled={disabled}
+                  onChange={() => toggleRole(option.value)}
+                />
+                <span>{option.label}</span>
+              </label>
+            );
+          })}
+        </div>
+        <div className="modal-actions">
+          <button type="button" className="button button--primary" onClick={() => setRolesOpen(false)}>
             閉じる
           </button>
         </div>

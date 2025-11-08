@@ -33,6 +33,7 @@ type WorkFields = {
   roles?: string[];
   industries?: string[];
   qualifications?: string[];
+  description?: string;
 };
 
 type AirtableWorkRecord = {
@@ -62,6 +63,7 @@ function normalizeRecord(record: AirtableWorkRecord) {
     roles: normalizeArray(fields.roles),
     industries: normalizeArray(fields.industries),
     qualifications: normalizeArray(fields.qualifications),
+    description: fields.description ?? "",
   } satisfies WorkHistoryItem & { id: string; resumeId: string };
 }
 
@@ -76,6 +78,7 @@ function toAirtableFields(resumeId: string, data: WorkHistoryItem): WorkFields {
     roles: data.roles ?? [],
     industries: data.industries ?? [],
     qualifications: data.qualifications ?? [],
+    description: data.description ?? "",
   };
 }
 
@@ -104,6 +107,7 @@ export async function GET(req: NextRequest) {
         "roles",
         "industries",
         "qualifications",
+        "description",
       ],
       sort: [{ field: "startYm", direction: "desc" }],
     });
