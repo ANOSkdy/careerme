@@ -1,138 +1,120 @@
-export const runtime = 'nodejs';
+export const runtime = "nodejs";
 
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 
 import {
+  combineFilterFormulas,
   createAirtableRecords,
   deleteAirtableRecords,
   listAirtableRecords,
   updateAirtableRecords,
-} from '../../../../lib/db/airtable';
+} from "../../../../lib/db/airtable";
+import {
+  WorkHistoryItemSchema,
+  type WorkHistoryItem,
+} from "../../../../lib/validation/schemas";
 
-const TABLE_NAME = process.env.AIRTABLE_TABLE_WORK ?? 'Work';
+const TABLE_NAME = process.env.AIRTABLE_TABLE_WORK ?? "Work";
 
-type WorkFields = Record<string, unknown>;
+const UpsertSchema = z.object({
+  id: z.string().trim().min(1).optional(),
+  resumeId: z.string().trim().min(1, "履歴書IDが必要です"),
+  data: WorkHistoryItemSchema,
+});
 
-class BadRequestError extends Error {}
+type WorkFields = {
+  resumeId?: string;
+  company?: string;
+  division?: string;
+  title?: string;
+  startYm?: string;
+  endYm?: string | null;
+  roles?: string[];
+  industries?: string[];
+  qualifications?: string[];
+  description?: string;
+};
 
-function sanitizeFields(input: unknown): Record<string, unknown> {
-  if (!input || typeof input !== 'object' || Array.isArray(input)) {
-    throw new BadRequestError('Invalid record fields payload');
-  }
+type AirtableWorkRecord = {
+  id: string;
+  fields: WorkFields;
+};
 
-  const fields = { ...(input as Record<string, unknown>) };
-  delete (fields as Record<string, unknown> & { source_env?: unknown }).source_env;
-  delete (fields as Record<string, unknown> & { pr_ref?: unknown }).pr_ref;
-  delete (fields as Record<string, unknown> & { id?: unknown }).id;
-  return fields;
+function sanitizeFormulaValue(value: string) {
+  return value.replace(/'/g, "\\'");
 }
 
-function parseCreateBody(body: unknown) {
-  if (!body || typeof body !== 'object') {
-    throw new BadRequestError('Invalid request body');
-  }
-
-  const data = body as Record<string, unknown>;
-
-  if (Array.isArray(data.records)) {
-    return data.records.map((record) => {
-      if (!record || typeof record !== 'object') {
-        throw new BadRequestError('Invalid record payload');
-      }
-
-      const recordObject = record as Record<string, unknown>;
-      if (
-        'fields' in recordObject &&
-        recordObject.fields &&
-        typeof recordObject.fields === 'object'
-      ) {
-        return { fields: sanitizeFields(recordObject.fields) };
-      }
-
-      return { fields: sanitizeFields(recordObject) };
-    });
-  }
-
-  if ('fields' in data && data.fields && typeof data.fields === 'object') {
-    return [{ fields: sanitizeFields(data.fields) }];
-  }
-
-  return [{ fields: sanitizeFields(body) }];
+function normalizeArray(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((item): item is string => typeof item === "string" && item.length > 0);
 }
 
-function parseUpdateBody(body: unknown) {
-  if (!body || typeof body !== 'object') {
-    throw new BadRequestError('Invalid request body');
-  }
-
-  const data = body as Record<string, unknown>;
-  const records = Array.isArray(data.records) ? data.records : [body];
-
-  return records.map((record) => {
-    if (!record || typeof record !== 'object') {
-      throw new BadRequestError('Invalid record payload');
-    }
-
-    const recordObject = record as Record<string, unknown>;
-    const id = recordObject.id;
-
-    if (typeof id !== 'string' || !id) {
-      throw new BadRequestError('Record id is required');
-    }
-
-    if (
-      'fields' in recordObject &&
-      recordObject.fields &&
-      typeof recordObject.fields === 'object'
-    ) {
-      return { id, fields: sanitizeFields(recordObject.fields) };
-    }
-
-    return { id, fields: sanitizeFields(recordObject) };
-  });
+function normalizeRecord(record: AirtableWorkRecord) {
+  const fields = record.fields;
+  return {
+    id: record.id,
+    resumeId: fields.resumeId ?? "",
+    company: fields.company ?? "",
+    division: fields.division ?? "",
+    title: fields.title ?? "",
+    startYm: fields.startYm ?? "",
+    endYm: fields.endYm ?? undefined,
+    roles: normalizeArray(fields.roles),
+    industries: normalizeArray(fields.industries),
+    qualifications: normalizeArray(fields.qualifications),
+    description: fields.description ?? "",
+  } satisfies WorkHistoryItem & { id: string; resumeId: string };
 }
 
-function parseDeleteIds(body: unknown): string[] {
-  if (!body || typeof body !== 'object') {
-    return [];
-  }
-
-  const data = body as Record<string, unknown>;
-
-  if (Array.isArray(data.ids)) {
-    return data.ids.filter(
-      (value): value is string => typeof value === 'string' && value.length > 0,
-    );
-  }
-
-  if (Array.isArray(data.records)) {
-    return data.records.filter(
-      (value): value is string => typeof value === 'string' && value.length > 0,
-    );
-  }
-
-  if (typeof data.id === 'string' && data.id) {
-    return [data.id];
-  }
-
-  return [];
+function toAirtableFields(resumeId: string, data: WorkHistoryItem): WorkFields {
+  return {
+    resumeId,
+    company: data.company,
+    division: data.division ?? "",
+    title: data.title ?? "",
+    startYm: data.startYm,
+    endYm: data.endYm ?? null,
+    roles: data.roles ?? [],
+    industries: data.industries ?? [],
+    qualifications: data.qualifications ?? [],
+    description: data.description ?? "",
+  };
 }
 
-function toErrorResponse(error: unknown) {
-  const message = error instanceof Error ? error.message : 'Unknown error';
-  const status = error instanceof BadRequestError ? 400 : 500;
+function toErrorResponse(error: unknown, status = 500) {
+  const message = error instanceof Error ? error.message : "Unknown error";
   return NextResponse.json({ ok: false, error: message }, { status });
 }
 
 export async function GET(req: NextRequest) {
   try {
-    const id = req.nextUrl.searchParams.get('id');
-    const filterByFormula = id ? `RECORD_ID()='${id}'` : undefined;
+    const resumeId = req.nextUrl.searchParams.get("resumeId");
+    if (!resumeId) {
+      return toErrorResponse(new Error("resumeId is required"), 400);
+    }
+
+    const filter = combineFilterFormulas(`{resumeId}='${sanitizeFormulaValue(resumeId)}'`);
     const records = await listAirtableRecords<WorkFields>(TABLE_NAME, {
-      filterByFormula,
+      filterByFormula: filter,
+      fields: [
+        "resumeId",
+        "company",
+        "division",
+        "title",
+        "startYm",
+        "endYm",
+        "roles",
+        "industries",
+        "qualifications",
+        "description",
+      ],
+      sort: [{ field: "startYm", direction: "desc" }],
     });
 
-    return NextResponse.json({ ok: true, records });
+    const items = records.map((record) => normalizeRecord(record));
+
+    return NextResponse.json({ ok: true, items });
   } catch (error) {
     return toErrorResponse(error);
   }
@@ -141,45 +123,33 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json().catch(() => {
-      throw new BadRequestError('Invalid JSON body');
+      throw new Error("Invalid JSON body");
     });
+    const parsed = UpsertSchema.safeParse(body);
+    if (!parsed.success) {
+      return toErrorResponse(parsed.error, 400);
+    }
 
-    const records = parseCreateBody(body);
-    const created = await createAirtableRecords<WorkFields>(TABLE_NAME, records);
+    const { id, resumeId, data } = parsed.data;
+    const fields = toAirtableFields(resumeId, data);
 
-    return NextResponse.json({ ok: true, records: created });
-  } catch (error) {
-    return toErrorResponse(error);
-  }
-}
+    if (id) {
+      const updated = await updateAirtableRecords<WorkFields>(TABLE_NAME, [
+        {
+          id,
+          fields,
+        },
+      ]);
+      return NextResponse.json({ ok: true, id: updated[0]?.id ?? id });
+    }
 
-export async function PATCH(req: NextRequest) {
-  try {
-    const body = await req.json().catch(() => {
-      throw new BadRequestError('Invalid JSON body');
-    });
+    const created = await createAirtableRecords<WorkFields>(TABLE_NAME, [
+      {
+        fields,
+      },
+    ]);
 
-    const records = parseUpdateBody(body);
-    const updated = await updateAirtableRecords<WorkFields>(TABLE_NAME, records);
-
-    return NextResponse.json({ ok: true, records: updated });
-  } catch (error) {
-    return toErrorResponse(error);
-  }
-}
-
-export async function PUT(req: NextRequest) {
-  try {
-    const body = await req.json().catch(() => {
-      throw new BadRequestError('Invalid JSON body');
-    });
-
-    const records = parseUpdateBody(body);
-    const updated = await updateAirtableRecords<WorkFields>(TABLE_NAME, records, {
-      replace: true,
-    });
-
-    return NextResponse.json({ ok: true, records: updated });
+    return NextResponse.json({ ok: true, id: created[0]?.id ?? null });
   } catch (error) {
     return toErrorResponse(error);
   }
@@ -187,18 +157,13 @@ export async function PUT(req: NextRequest) {
 
 export async function DELETE(req: NextRequest) {
   try {
-    const body = await req.json().catch(() => ({}));
-    const idsFromBody = parseDeleteIds(body);
-    const idFromQuery = req.nextUrl.searchParams.getAll('id');
-    const ids = Array.from(new Set([...idsFromBody, ...idFromQuery].filter(Boolean)));
-
-    if (!ids.length) {
-      throw new BadRequestError('At least one record id is required for deletion');
+    const id = req.nextUrl.searchParams.get("id");
+    if (!id) {
+      return toErrorResponse(new Error("id is required"), 400);
     }
 
-    const deleted = await deleteAirtableRecords(TABLE_NAME, ids);
-
-    return NextResponse.json({ ok: true, records: deleted });
+    await deleteAirtableRecords(TABLE_NAME, [id]);
+    return NextResponse.json({ ok: true });
   } catch (error) {
     return toErrorResponse(error);
   }
