@@ -13,6 +13,11 @@ const qaFieldSchema = z
   .min(10, qaMessageMin)
   .max(600, qaMessageMax);
 
+const genderRequiredMessage = "性別を選択してください";
+const genderSelectionSchema = z.enum(["male", "female", "none"], {
+  errorMap: () => ({ message: genderRequiredMessage }),
+});
+
 export const CvQaSchema = z.object({
   q1: qaFieldSchema,
   q2: qaFieldSchema,
@@ -103,22 +108,42 @@ function requiredName(message: string) {
     .max(100, "100文字以内で入力してください");
 }
 
-export const BasicInfoSchema = z.object({
-  lastName: requiredName("姓を入力してください"),
-  firstName: requiredName("名を入力してください"),
-  dob: DobSchema,
-  gender: z.enum(["male", "female", "none"]).default("none"),
-});
+export const BasicInfoSchema = z
+  .object({
+    lastName: requiredName("姓を入力してください"),
+    firstName: requiredName("名を入力してください"),
+    dob: DobSchema,
+    gender: genderSelectionSchema.default("none"),
+  })
+  .superRefine((value, ctx) => {
+    if (value.gender === "none") {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: genderRequiredMessage,
+        path: ["gender"],
+      });
+    }
+  });
 
 export type BasicInfo = z.infer<typeof BasicInfoSchema>;
 export type DobValue = z.infer<typeof DobSchema>;
 
-export const BasicInfoPartialSchema = z.object({
-  lastName: requiredName("姓を入力してください").optional(),
-  firstName: requiredName("名を入力してください").optional(),
-  dob: DobSchema.partial().optional(),
-  gender: z.enum(["male", "female", "none"]).optional(),
-});
+export const BasicInfoPartialSchema = z
+  .object({
+    lastName: requiredName("姓を入力してください").optional(),
+    firstName: requiredName("名を入力してください").optional(),
+    dob: DobSchema.partial().optional(),
+    gender: genderSelectionSchema.optional(),
+  })
+  .superRefine((value, ctx) => {
+    if (typeof value.gender !== "undefined" && value.gender === "none") {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: genderRequiredMessage,
+        path: ["gender"],
+      });
+    }
+  });
 
 export type BasicInfoPartial = z.infer<typeof BasicInfoPartialSchema>;
 
