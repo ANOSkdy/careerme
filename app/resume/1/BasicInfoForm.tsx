@@ -1,16 +1,25 @@
+
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import type { ChangeEvent, CSSProperties, FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import type { BasicInfo, BasicInfoPartial } from "../../../lib/validation/schemas";
 import {
-  BasicInfoPartialSchema,
-  BasicInfoSchema,
-} from "../../../lib/validation/schemas";
-import StepNav from "../_components/StepNav";
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ChangeEvent,
+  type CSSProperties,
+  type FormEvent,
+} from "react";
 
-const STORAGE_KEY = "resume.resumeId";
+import StepNav from "../_components/StepNav";
+import type { SaveState } from "../_components/hooks/useAutoSave";
+import { useAutoSave } from "../_components/hooks/useAutoSave";
+import {
+  BasicInfoSchema,
+  type BasicInfo,
+} from "../../../lib/validation/schemas";
 
 const genderOptions: { value: BasicInfo["gender"]; label: string }[] = [
   { value: "male", label: "男性" },
@@ -54,6 +63,11 @@ type FormState = {
 
 type FieldKey = "lastName" | "firstName" | "gender" | "dob.year" | "dob.month" | "dob.day";
 
+type ResumeResponse = {
+  id?: string | null;
+  basicInfo?: BasicInfo | null;
+};
+
 const initialForm: FormState = {
   lastName: "",
   firstName: "",
@@ -74,48 +88,10 @@ function formFromBasicInfo(value: BasicInfo): FormState {
   };
 }
 
-function formFromPartialBasicInfo(value: BasicInfoPartial): FormState {
-  return {
-    lastName: value.lastName ?? "",
-    firstName: value.firstName ?? "",
-    gender: value.gender ?? "none",
-    dob: {
-      year: value.dob?.year ? String(value.dob.year) : "",
-      month: value.dob?.month ? String(value.dob.month) : "",
-      day: value.dob?.day ? String(value.dob.day) : "",
-    },
-  };
-}
-
-function extractBasicInfo(payload: unknown):
-  | { form: FormState; snapshot: string | null }
-  | null {
-  const candidates = [
-    (payload as { basicInfo?: unknown })?.basicInfo,
-    (payload as { data?: { basicInfo?: unknown } })?.data?.basicInfo,
-    (payload as { fields?: { basicInfo?: unknown } })?.fields?.basicInfo,
-    (payload as { step1?: unknown })?.step1,
-    payload,
-  ];
-
-  for (const candidate of candidates) {
-    if (!candidate || typeof candidate !== "object") continue;
-    const full = BasicInfoSchema.safeParse(candidate);
-    if (full.success) {
-      return { form: formFromBasicInfo(full.data), snapshot: JSON.stringify(full.data) };
-    }
-    const partial = BasicInfoPartialSchema.safeParse(candidate);
-    if (partial.success) {
-      return { form: formFromPartialBasicInfo(partial.data), snapshot: null };
-    }
-  }
-
-  return null;
-}
-
 export default function BasicInfoForm() {
   const router = useRouter();
   const [resumeId, setResumeId] = useState<string | null>(null);
+  const resumeIdRef = useRef<string | null>(null);
   const [form, setForm] = useState<FormState>(initialForm);
   const [touched, setTouched] = useState<Record<FieldKey, boolean>>({
     lastName: false,
@@ -126,56 +102,50 @@ export default function BasicInfoForm() {
     "dob.day": false,
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [isLoading, setIsLoading] = useState(false);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [saveState, setSaveState] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const [isLoading, setIsLoading] = useState(true);
+  const [saveState, setSaveState] = useState<SaveState>("idle");
   const [saveError, setSaveError] = useState<string | null>(null);
-  const [lastSavedSnapshot, setLastSavedSnapshot] = useState<string | null>(null);
   const [submitAttempted, setSubmitAttempted] = useState(false);
+  const lastSavedSnapshotRef = useRef<string | null>(null);
+  const ensureIdPromiseRef = useRef<Promise<string | null> | null>(null);
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    const stored = window.localStorage.getItem(STORAGE_KEY);
-    if (stored) {
-      setResumeId(stored);
-      return;
-    }
-    const generated =
-      window.crypto?.randomUUID?.() ?? Math.random().toString(36).slice(2);
-    window.localStorage.setItem(STORAGE_KEY, generated);
-    setResumeId(generated);
-  }, []);
+    resumeIdRef.current = resumeId;
+  }, [resumeId]);
 
   useEffect(() => {
-    if (!resumeId) return;
     let cancelled = false;
     const controller = new AbortController();
     setIsLoading(true);
 
     (async () => {
       try {
-        const params = new URLSearchParams({ id: resumeId, draftId: resumeId });
-        const res = await fetch(`/api/data/resume?${params.toString()}`, {
+        const res = await fetch("/api/data/resume", {
           cache: "no-store",
           signal: controller.signal,
         });
         if (!res.ok) {
-          console.warn("Failed to fetch resume", res.status);
-          return;
+          throw new Error(`failed to load resume: ${res.status}`);
         }
-        const data = await res.json();
-        const basicInfo = extractBasicInfo(data);
-        if (!cancelled && basicInfo) {
-          setForm(basicInfo.form);
-          if (basicInfo.snapshot) {
-            setLastSavedSnapshot(basicInfo.snapshot);
-          } else {
-            setLastSavedSnapshot(null);
+        const data = (await res.json()) as ResumeResponse;
+        if (cancelled) return;
+
+        const id = typeof data.id === "string" && data.id ? data.id : null;
+        if (id) {
+          resumeIdRef.current = id;
+          setResumeId(id);
+        }
+        if (data.basicInfo) {
+          const result = BasicInfoSchema.safeParse(data.basicInfo);
+          if (result.success) {
+            setForm(formFromBasicInfo(result.data));
+            lastSavedSnapshotRef.current = JSON.stringify(result.data);
           }
         }
       } catch (error) {
-        if ((error as Error).name === "AbortError") return;
-        console.error("Failed to load resume basic info", error);
+        if ((error as Error).name !== "AbortError") {
+          console.error("Failed to load resume basic info", error);
+        }
       } finally {
         if (!cancelled) {
           setIsLoading(false);
@@ -187,7 +157,40 @@ export default function BasicInfoForm() {
       cancelled = true;
       controller.abort();
     };
-  }, [resumeId]);
+  }, []);
+
+  const ensureResumeId = useCallback(async () => {
+    if (resumeIdRef.current) return resumeIdRef.current;
+    if (ensureIdPromiseRef.current) return ensureIdPromiseRef.current;
+
+    ensureIdPromiseRef.current = (async () => {
+      try {
+        const res = await fetch("/api/data/resume", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ touch: true }),
+          cache: "no-store",
+        });
+        if (!res.ok) {
+          throw new Error(`failed to ensure resume id: ${res.status}`);
+        }
+        const json = (await res.json()) as ResumeResponse;
+        const id = typeof json.id === "string" && json.id ? json.id : null;
+        if (id) {
+          resumeIdRef.current = id;
+          setResumeId(id);
+        }
+        return id;
+      } catch (error) {
+        console.error("Failed to ensure resume id", error);
+        return null;
+      } finally {
+        ensureIdPromiseRef.current = null;
+      }
+    })();
+
+    return ensureIdPromiseRef.current;
+  }, []);
 
   const parsed = useMemo(() => BasicInfoSchema.safeParse(form), [form]);
 
@@ -222,57 +225,64 @@ export default function BasicInfoForm() {
     }
   }, [maxDay, form.dob.day]);
 
-  const saveData = useCallback(
-    async (values: BasicInfo, skipIfUnchanged = false) => {
-      if (!resumeId) return false;
-      const snapshot = JSON.stringify(values);
-      if (skipIfUnchanged && snapshot === lastSavedSnapshot) {
+  const saveBasicInfo = useCallback(
+    async (value: BasicInfo, options: { force?: boolean } = {}) => {
+      const snapshot = JSON.stringify(value);
+      if (!options.force && snapshot === lastSavedSnapshotRef.current && resumeIdRef.current) {
         return true;
       }
+
+      const ensuredId = await ensureResumeId();
+      if (!ensuredId) {
+        setSaveState("error");
+        setSaveError("IDの確保に失敗しました。時間をおいて再度お試しください。");
+        return false;
+      }
+
       setSaveState("saving");
       setSaveError(null);
       try {
         const res = await fetch("/api/data/resume", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            id: resumeId,
-            lastName: values.lastName,
-            firstName: values.firstName,
-            dob: values.dob,
-            gender: values.gender,
-          }),
+          body: JSON.stringify({ id: ensuredId, basicInfo: value }),
           cache: "no-store",
         });
         if (!res.ok) {
-          throw new Error(`Failed to save: ${res.status}`);
+          throw new Error(`failed to save resume: ${res.status}`);
         }
+        const json = (await res.json()) as ResumeResponse;
+        const id = typeof json.id === "string" && json.id ? json.id : ensuredId;
+        resumeIdRef.current = id;
+        setResumeId(id);
+        lastSavedSnapshotRef.current = snapshot;
         setSaveState("saved");
-        setLastSavedSnapshot(snapshot);
+        setTimeout(() => setSaveState("idle"), 1200);
         return true;
       } catch (error) {
-        console.error("Failed to save resume basic info", error);
+        console.error("Failed to save basic info", error);
         setSaveState("error");
         setSaveError("保存に失敗しました。時間をおいて再試行してください。");
         return false;
       }
     },
-    [resumeId, lastSavedSnapshot]
+    [ensureResumeId]
   );
+
+  const autoSavePayload = parsed.success ? parsed.data : null;
+
+  useAutoSave(autoSavePayload, async (value) => {
+    if (!value) return;
+    await saveBasicInfo(value);
+  }, 2000, { enabled: Boolean(autoSavePayload) && !isLoading });
 
   const setFieldTouched = useCallback((field: FieldKey) => {
     setTouched((prev) => ({ ...prev, [field]: true }));
   }, []);
 
-  const handleBlur = useCallback(
-    (field: FieldKey) => {
-      setFieldTouched(field);
-      if (parsed.success && resumeId) {
-        void saveData(parsed.data, true);
-      }
-    },
-    [parsed, resumeId, saveData, setFieldTouched]
-  );
+  const handleBlur = useCallback((field: FieldKey) => {
+    setFieldTouched(field);
+  }, [setFieldTouched]);
 
   const handleInputChange = (field: "lastName" | "firstName") =>
     (event: ChangeEvent<HTMLInputElement>) => {
@@ -308,7 +318,7 @@ export default function BasicInfoForm() {
     return errors[key] ?? (field.startsWith("dob") ? errors["dob"] : undefined);
   };
 
-  const nextDisabled = !parsed.success || isSubmitting || isLoading;
+  const nextDisabled = !parsed.success || isLoading;
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -328,10 +338,8 @@ export default function BasicInfoForm() {
       return;
     }
 
-    setIsSubmitting(true);
-    const success = await saveData(result.data, false);
-    setIsSubmitting(false);
-    if (success) {
+    const saved = await saveBasicInfo(result.data, { force: true });
+    if (saved) {
       router.push("/resume/2");
     }
   };
@@ -409,161 +417,138 @@ export default function BasicInfoForm() {
             </p>
           )}
         </div>
-      </div>
 
-      <fieldset
-        style={{
-          border: "none",
-          margin: 0,
-          padding: 0,
-          display: "grid",
-          gap: "12px",
-        }}
-      >
-        <legend
-          style={{ fontSize: "0.875rem", fontWeight: 600, color: "var(--color-text, #333333)" }}
-        >
-          生年月日 <span style={{ color: "var(--color-required, #FF4500)" }}>*</span>
-        </legend>
-        <div style={{ display: "grid", gap: "12px", gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))" }}>
-          <div>
-            <label htmlFor="dob-year" style={srOnlyStyle}>
-              生年
-            </label>
-            <select
-              id="dob-year"
-              name="dob-year"
-              value={form.dob.year}
-              onChange={handleDobChange("year")}
-              onBlur={() => handleBlur("dob.year")}
-              aria-invalid={showError("dob.year")}
-              aria-describedby={showError("dob.year") ? "error-dob" : undefined}
-              style={{
-                width: "100%",
-                borderRadius: "8px",
-                border: `1px solid ${showError("dob.year") ? "#dc2626" : "var(--color-border, #CCCCCC)"}`,
-                padding: "10px 12px",
-                fontSize: "1rem",
-                backgroundColor: "var(--color-bg, #FFFFFF)",
-              }}
-            >
-              <option value="" disabled>
-                年
-              </option>
-              {years.map((year) => (
-                <option key={year} value={year}>
-                  {year}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label htmlFor="dob-month" style={srOnlyStyle}>
-              月
-            </label>
-            <select
-              id="dob-month"
-              name="dob-month"
-              value={form.dob.month}
-              onChange={handleDobChange("month")}
-              onBlur={() => handleBlur("dob.month")}
-              aria-invalid={showError("dob.month")}
-              aria-describedby={showError("dob.month") ? "error-dob" : undefined}
-              style={{
-                width: "100%",
-                borderRadius: "8px",
-                border: `1px solid ${showError("dob.month") ? "#dc2626" : "var(--color-border, #CCCCCC)"}`,
-                padding: "10px 12px",
-                fontSize: "1rem",
-                backgroundColor: "var(--color-bg, #FFFFFF)",
-              }}
-            >
-              <option value="" disabled>
-                月
-              </option>
-              {months.map((month) => (
-                <option key={month} value={month}>
-                  {month}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label htmlFor="dob-day" style={srOnlyStyle}>
-              日
-            </label>
-            <select
-              id="dob-day"
-              name="dob-day"
-              value={form.dob.day}
-              onChange={handleDobChange("day")}
-              onBlur={() => handleBlur("dob.day")}
-              aria-invalid={showError("dob.day")}
-              aria-describedby={showError("dob.day") ? "error-dob" : undefined}
-              style={{
-                width: "100%",
-                borderRadius: "8px",
-                border: `1px solid ${showError("dob.day") ? "#dc2626" : "var(--color-border, #CCCCCC)"}`,
-                padding: "10px 12px",
-                fontSize: "1rem",
-                backgroundColor: "var(--color-bg, #FFFFFF)",
-              }}
-            >
-              <option value="" disabled>
-                日
-              </option>
-              {days.map((day) => (
-                <option key={day} value={day}>
-                  {day}
-                </option>
-              ))}
-            </select>
-          </div>
-        </div>
-        {(showError("dob.year") || showError("dob.month") || showError("dob.day")) && (
-          <p id="error-dob" style={{ fontSize: "0.75rem", color: "#dc2626" }}>
-            {getErrorMessage("dob.year") || getErrorMessage("dob.month") || getErrorMessage("dob.day")}
-          </p>
-        )}
-      </fieldset>
-
-      <div style={{ display: "grid", gap: "12px" }}>
-        <span style={{ fontSize: "0.875rem", fontWeight: 600, color: "var(--color-text, #333333)" }}>
-          性別
-        </span>
-        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }} role="group" aria-label="性別">
-          {genderOptions.map((option) => {
-            const isActive = form.gender === option.value;
-            return (
-              <button
+        <fieldset style={{ border: "none", padding: 0, margin: 0 }}>
+          <legend style={srOnlyStyle}>性別</legend>
+          <span style={{ display: "block", fontSize: "0.875rem", fontWeight: 600, color: "var(--color-text, #333333)" }}>
+            性別 <span style={{ color: "var(--color-required, #FF4500)" }}>*</span>
+          </span>
+          <div style={{ display: "flex", gap: "8px", marginTop: "8px" }}>
+            {genderOptions.map((option) => (
+              <label
                 key={option.value}
-                type="button"
-                onClick={() => handleGenderSelect(option.value)}
-                onBlur={() => handleBlur("gender")}
-                aria-pressed={isActive}
                 style={{
-                  padding: "10px 16px",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  padding: "8px 12px",
                   borderRadius: "9999px",
-                  border: `1px solid ${isActive ? "var(--color-primary, #3A75C4)" : "var(--color-border, #CCCCCC)"}`,
-                  backgroundColor: isActive
-                    ? "var(--color-primary, #3A75C4)"
-                    : "var(--color-bg, #FFFFFF)",
-                  color: isActive ? "#ffffff" : "var(--color-text, #333333)",
-                  fontSize: "0.875rem",
-                  fontWeight: 600,
-                  transition: "background-color 0.2s ease, color 0.2s ease",
+                  border: form.gender === option.value ? "2px solid var(--color-primary, #2563eb)" : "1px solid var(--color-border, #cccccc)",
+                  backgroundColor:
+                    form.gender === option.value ? "rgba(37, 99, 235, 0.1)" : "#ffffff",
+                  cursor: "pointer",
                 }}
               >
-                {option.label}
-              </button>
-            );
-          })}
+                <input
+                  type="radio"
+                  name="gender"
+                  value={option.value}
+                  checked={form.gender === option.value}
+                  onChange={() => handleGenderSelect(option.value)}
+                  onBlur={() => handleBlur("gender")}
+                  style={{ display: "none" }}
+                />
+                <span>{option.label}</span>
+              </label>
+            ))}
+          </div>
+          {showError("gender") && (
+            <p style={{ marginTop: "4px", fontSize: "0.75rem", color: "#dc2626" }}>
+              {getErrorMessage("gender")}
+            </p>
+          )}
+        </fieldset>
+
+        <div>
+          <span style={{ display: "block", fontSize: "0.875rem", fontWeight: 600, color: "var(--color-text, #333333)" }}>
+            生年月日 <span style={{ color: "var(--color-required, #FF4500)" }}>*</span>
+          </span>
+          <div style={{ display: "flex", gap: "12px", marginTop: "8px" }}>
+            <label style={{ flex: 1 }}>
+              <span style={srOnlyStyle}>年</span>
+              <select
+                value={form.dob.year}
+                onChange={handleDobChange("year")}
+                onBlur={() => handleBlur("dob.year")}
+                aria-invalid={showError("dob.year")}
+                aria-describedby={showError("dob.year") ? "error-dob-year" : undefined}
+                style={{
+                  width: "100%",
+                  borderRadius: "8px",
+                  border: `1px solid ${showError("dob.year") ? "#dc2626" : "var(--color-border, #CCCCCC)"}`,
+                  padding: "10px 12px",
+                  fontSize: "1rem",
+                }}
+              >
+                <option value="" disabled>
+                  年を選択
+                </option>
+                {years.map((year) => (
+                  <option key={year} value={year}>
+                    {year}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label style={{ flex: 1 }}>
+              <span style={srOnlyStyle}>月</span>
+              <select
+                value={form.dob.month}
+                onChange={handleDobChange("month")}
+                onBlur={() => handleBlur("dob.month")}
+                aria-invalid={showError("dob.month")}
+                aria-describedby={showError("dob.month") ? "error-dob-month" : undefined}
+                style={{
+                  width: "100%",
+                  borderRadius: "8px",
+                  border: `1px solid ${showError("dob.month") ? "#dc2626" : "var(--color-border, #CCCCCC)"}`,
+                  padding: "10px 12px",
+                  fontSize: "1rem",
+                }}
+              >
+                <option value="" disabled>
+                  月を選択
+                </option>
+                {months.map((month) => (
+                  <option key={month} value={month}>
+                    {month}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label style={{ flex: 1 }}>
+              <span style={srOnlyStyle}>日</span>
+              <select
+                value={form.dob.day}
+                onChange={handleDobChange("day")}
+                onBlur={() => handleBlur("dob.day")}
+                aria-invalid={showError("dob.day")}
+                aria-describedby={showError("dob.day") ? "error-dob-day" : undefined}
+                style={{
+                  width: "100%",
+                  borderRadius: "8px",
+                  border: `1px solid ${showError("dob.day") ? "#dc2626" : "var(--color-border, #CCCCCC)"}`,
+                  padding: "10px 12px",
+                  fontSize: "1rem",
+                }}
+              >
+                <option value="" disabled>
+                  日を選択
+                </option>
+                {days.map((day) => (
+                  <option key={day} value={day}>
+                    {day}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+          {(showError("dob.year") || showError("dob.month") || showError("dob.day")) && (
+            <p style={{ marginTop: "4px", fontSize: "0.75rem", color: "#dc2626" }}>
+              {errors["dob.year"] || errors["dob.month"] || errors["dob.day"] || errors["dob"]}
+            </p>
+          )}
         </div>
-        {saveError && (
-          <p role="alert" style={{ fontSize: "0.75rem", color: "#dc2626" }}>
-            {saveError}
-          </p>
-        )}
       </div>
 
       <div
@@ -576,13 +561,12 @@ export default function BasicInfoForm() {
         {saveState === "saving" && "保存中…"}
         {saveState === "saved" && "保存しました"}
         {saveState === "error" && "保存に失敗しました"}
+        {saveError && (
+          <span style={{ display: "block", marginTop: "4px", color: "#dc2626" }}>{saveError}</span>
+        )}
       </div>
-      <StepNav
-        step={1}
-        nextType="submit"
-        nextDisabled={nextDisabled}
-        nextLabel={isSubmitting ? "送信中…" : "次へ"}
-      />
+
+      <StepNav step={1} nextType="submit" nextDisabled={nextDisabled} />
     </form>
   );
 }

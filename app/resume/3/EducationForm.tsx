@@ -1,3 +1,4 @@
+
 "use client";
 
 import { useRouter } from "next/navigation";
@@ -14,14 +15,12 @@ import {
 import AutoSaveBadge from "../_components/AutoSaveBadge";
 import StepNav from "../_components/StepNav";
 import type { SaveState } from "../_components/hooks/useAutoSave";
+import { useAutoSave } from "../_components/hooks/useAutoSave";
 import {
   EducationItemSchema,
   EducationListSchema,
-  ResumeStatusSchema,
 } from "../../../lib/validation/schemas";
-import { z } from "zod";
-
-const STORAGE_KEY = "resume.resumeId";
+import type { z } from "zod";
 
 const finalEducationOptions = [
   "院卒",
@@ -35,42 +34,27 @@ const finalEducationOptions = [
 
 type FinalEducation = (typeof finalEducationOptions)[number];
 
-type EducationItem = {
-  schoolName: string;
-  faculty: string;
-  start: string;
-  end: string;
-  present: boolean;
-};
+type EducationItem = z.infer<typeof EducationItemSchema>;
 
 type RowErrors = Record<number, Partial<Record<keyof EducationItem, string>>>;
 
+type ResumeResponse = {
+  id?: string | null;
+  highestEducation?: string | null;
+};
+
 type EducationResponse = {
+  ok?: boolean;
   items?: Array<{
     schoolName?: string;
-    school?: string;
     faculty?: string;
+    school?: string;
     degree?: string;
     start?: string;
     end?: string;
     present?: boolean;
     current?: boolean;
   }>;
-};
-
-type ResumeStep2Response = {
-  step2?: {
-    status?: string;
-    note?: string;
-  } | null;
-};
-
-type ResumeStatusSnapshot = {
-  eduStatus?: z.infer<typeof ResumeStatusSchema>["eduStatus"];
-  joinTiming?: z.infer<typeof ResumeStatusSchema>["joinTiming"];
-  jobChangeCount?: z.infer<typeof ResumeStatusSchema>["jobChangeCount"];
-  finalEducation?: FinalEducation;
-  version?: string;
 };
 
 const defaultItem: EducationItem = {
@@ -112,49 +96,14 @@ function normalizeEducationItem(raw: unknown): EducationItem {
   };
 }
 
-function parseResumeStatusNote(note: unknown): ResumeStatusSnapshot | null {
-  if (typeof note !== "string" || !note) return null;
-  try {
-    const parsed = JSON.parse(note);
-    if (!parsed || typeof parsed !== "object") return null;
-
-    const snapshot: ResumeStatusSnapshot = {};
-    const data = parsed as Record<string, unknown>;
-    if (typeof data.eduStatus === "string") {
-      snapshot.eduStatus = data.eduStatus as ResumeStatusSnapshot["eduStatus"];
-    }
-    if (typeof data.joinTiming === "string") {
-      snapshot.joinTiming = data.joinTiming as ResumeStatusSnapshot["joinTiming"];
-    }
-    if (typeof data.jobChangeCount === "string") {
-      snapshot.jobChangeCount = data.jobChangeCount as ResumeStatusSnapshot["jobChangeCount"];
-    }
-    if (typeof data.version === "string") {
-      snapshot.version = data.version;
-    }
-    if (typeof data.finalEducation === "string") {
-      if (finalEducationOptions.includes(data.finalEducation as FinalEducation)) {
-        snapshot.finalEducation = data.finalEducation as FinalEducation;
-      }
-    }
-    return snapshot;
-  } catch (error) {
-    console.warn("Failed to parse resume status note", error);
-    return null;
-  }
-}
-
-function createNotePayload(
-  snapshot: ResumeStatusSnapshot | null,
-  finalEducation: FinalEducation
-) {
-  const base: Record<string, unknown> = {};
-  if (snapshot?.eduStatus) base.eduStatus = snapshot.eduStatus;
-  if (snapshot?.joinTiming) base.joinTiming = snapshot.joinTiming;
-  if (snapshot?.jobChangeCount) base.jobChangeCount = snapshot.jobChangeCount;
-  base.finalEducation = finalEducation;
-  base.version = snapshot?.version ?? "resume-status/v2";
-  return base;
+function prepareEducationPayload(items: EducationItem[]) {
+  return items.map((item) => ({
+    schoolName: item.schoolName,
+    faculty: item.faculty ?? "",
+    start: item.start,
+    end: item.present ? "" : item.end ?? "",
+    present: Boolean(item.present),
+  }));
 }
 
 export default function EducationForm() {
@@ -170,98 +119,116 @@ export default function EducationForm() {
   const [finalTouched, setFinalTouched] = useState(false);
   const [resumeId, setResumeId] = useState<string | null>(null);
   const resumeIdRef = useRef<string | null>(null);
-  const resumeStatusRef = useRef<ResumeStatusSnapshot | null>(null);
-  const [saveState, setSaveState] = useState<SaveState>("idle");
-  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const ensureIdPromiseRef = useRef<Promise<string | null> | null>(null);
+  const lastEducationSnapshotRef = useRef<string | null>(null);
+  const lastHighestSnapshotRef = useRef<string | null>(null);
+  const [educationSaveState, setEducationSaveState] = useState<SaveState>("idle");
+  const [finalSaveState, setFinalSaveState] = useState<SaveState>("idle");
   const [isHydrating, setIsHydrating] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
-    const stored = window.localStorage.getItem(STORAGE_KEY);
-    if (stored) {
-      resumeIdRef.current = stored;
-      setResumeId(stored);
-      return;
-    }
-    const generated =
-      window.crypto?.randomUUID?.() ?? Math.random().toString(36).slice(2);
-    window.localStorage.setItem(STORAGE_KEY, generated);
-    resumeIdRef.current = generated;
-    setResumeId(generated);
-  }, []);
+    resumeIdRef.current = resumeId;
+  }, [resumeId]);
 
-  useEffect(() => {
-    itemsRef.current = items;
-  }, [items]);
+  const ensureResumeId = useCallback(async () => {
+    if (resumeIdRef.current) return resumeIdRef.current;
+    if (ensureIdPromiseRef.current) return ensureIdPromiseRef.current;
 
-  useEffect(() => {
-    return () => {
-      if (saveTimerRef.current) {
-        clearTimeout(saveTimerRef.current);
+    ensureIdPromiseRef.current = (async () => {
+      try {
+        const res = await fetch("/api/data/resume", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ touch: true }),
+          cache: "no-store",
+        });
+        if (!res.ok) {
+          throw new Error(`failed to ensure resume id: ${res.status}`);
+        }
+        const data = (await res.json()) as ResumeResponse;
+        const id = typeof data.id === "string" && data.id ? data.id : null;
+        if (id) {
+          resumeIdRef.current = id;
+          setResumeId(id);
+        }
+        return id;
+      } catch (error) {
+        console.error("Failed to ensure resume id", error);
+        return null;
+      } finally {
+        ensureIdPromiseRef.current = null;
       }
-    };
+    })();
+
+    return ensureIdPromiseRef.current;
   }, []);
 
   useEffect(() => {
-    if (!resumeId) return;
-
     let cancelled = false;
-    const controller = new AbortController();
     setIsHydrating(true);
-    setLoadError(null);
 
     (async () => {
       try {
-        const params = new URLSearchParams({ resumeId });
-        const resumeParams = new URLSearchParams({ id: resumeId, draftId: resumeId });
-
-        const [educationRes, resumeRes] = await Promise.all([
-          fetch(`/api/data/education?${params.toString()}`, {
-            cache: "no-store",
-            signal: controller.signal,
-          }),
-          fetch(`/api/data/resume?${resumeParams.toString()}`, {
-            cache: "no-store",
-            signal: controller.signal,
-          }),
-        ]);
-
-        if (!educationRes.ok) {
-          throw new Error(`failed to fetch education: ${educationRes.status}`);
-        }
+        const resumeRes = await fetch("/api/data/resume", { cache: "no-store" });
         if (!resumeRes.ok) {
-          throw new Error(`failed to fetch resume: ${resumeRes.status}`);
+          throw new Error(`failed to load resume: ${resumeRes.status}`);
         }
-
-        const educationJson = (await educationRes.json()) as EducationResponse;
-        const resumeJson = (await resumeRes.json()) as ResumeStep2Response;
-
+        const resumeJson = (await resumeRes.json()) as ResumeResponse;
         if (cancelled) return;
 
-        const normalizedItems = Array.isArray(educationJson?.items)
+        let id = typeof resumeJson.id === "string" && resumeJson.id ? resumeJson.id : null;
+        if (id) {
+          resumeIdRef.current = id;
+          setResumeId(id);
+        }
+        if (resumeJson.highestEducation) {
+          if (finalEducationOptions.includes(resumeJson.highestEducation as FinalEducation)) {
+            setFinalEducation(resumeJson.highestEducation as FinalEducation);
+            lastHighestSnapshotRef.current = resumeJson.highestEducation;
+          }
+        }
+
+        if (!id) {
+          id = await ensureResumeId();
+        }
+
+        if (!id) {
+          itemsRef.current = [defaultItem];
+          setItems([defaultItem]);
+          lastEducationSnapshotRef.current = null;
+          setLoadError(null);
+          return;
+        }
+
+        const educationRes = await fetch(`/api/data/education?resumeId=${encodeURIComponent(id)}`, {
+          cache: "no-store",
+        });
+        if (!educationRes.ok) {
+          throw new Error(`failed to load education: ${educationRes.status}`);
+        }
+        const educationJson = (await educationRes.json()) as EducationResponse;
+        if (cancelled) return;
+
+        const normalized = Array.isArray(educationJson.items)
           ? educationJson.items.map((item) => normalizeEducationItem(item))
           : [];
-
-        const nextItems = normalizedItems.length ? normalizedItems : [defaultItem];
+        const nextItems = normalized.length ? normalized : [defaultItem];
         itemsRef.current = nextItems;
         setItems(nextItems);
-
-        const snapshot = parseResumeStatusNote(resumeJson?.step2?.note ?? null);
-        resumeStatusRef.current = snapshot;
-        setFinalEducation(snapshot?.finalEducation ?? "");
-        setFocusedFinalEducation(null);
-        setFinalTouched(false);
-        setSubmitError(null);
-        setSaveState("idle");
-        setIsHydrating(false);
+        lastEducationSnapshotRef.current = normalized.length
+          ? JSON.stringify(prepareEducationPayload(normalized))
+          : JSON.stringify([]);
+        setLoadError(null);
       } catch (error) {
-        if ((error as Error).name === "AbortError") return;
-        console.error("Failed to load education data", error);
         if (!cancelled) {
+          console.error("Failed to load education data", error);
           setLoadError("学歴情報の取得に失敗しました");
+        }
+      } finally {
+        if (!cancelled) {
           setIsHydrating(false);
         }
       }
@@ -269,13 +236,14 @@ export default function EducationForm() {
 
     return () => {
       cancelled = true;
-      controller.abort();
-      if (saveTimerRef.current) {
-        clearTimeout(saveTimerRef.current);
-        saveTimerRef.current = null;
-      }
     };
-  }, [resumeId]);
+  }, [ensureResumeId]);
+
+  useEffect(() => {
+    itemsRef.current = items;
+  }, [items]);
+
+  const listValidation = useMemo(() => EducationListSchema.safeParse(items), [items]);
 
   useEffect(() => {
     const nextErrors: RowErrors = {};
@@ -293,85 +261,113 @@ export default function EducationForm() {
     });
     setRowErrors(nextErrors);
 
-    const listResult = EducationListSchema.safeParse(items);
-    if (!listResult.success) {
-      const issue = listResult.error.issues[0];
+    if (!listValidation.success) {
+      const issue = listValidation.error.issues[0];
       setListError(issue?.message ?? "入力内容に不備があります");
     } else {
       setListError(null);
     }
-  }, [items]);
+  }, [items, listValidation]);
 
-  const ensureResumeId = useCallback(() => {
-    if (resumeIdRef.current) return resumeIdRef.current;
-    if (typeof window === "undefined") return null;
-    const generated = window.crypto?.randomUUID?.() ?? Math.random().toString(36).slice(2);
-    window.localStorage.setItem(STORAGE_KEY, generated);
-    resumeIdRef.current = generated;
-    setResumeId(generated);
-    return generated;
-  }, []);
-
-  const persistEducation = useCallback(
-    async (override?: EducationItem[]): Promise<boolean> => {
-      const id = ensureResumeId();
-      if (!id) return false;
-      const target = override ?? itemsRef.current;
-      const parsed = EducationListSchema.safeParse(target);
-      if (!parsed.success) return false;
-
-      if (saveTimerRef.current) {
-        clearTimeout(saveTimerRef.current);
-        saveTimerRef.current = null;
+  const saveEducation = useCallback(
+    async (value: EducationItem[], options: { force?: boolean } = {}) => {
+      const payload = prepareEducationPayload(value);
+      const snapshot = JSON.stringify(payload);
+      if (!options.force && snapshot === lastEducationSnapshotRef.current && resumeIdRef.current) {
+        return true;
       }
 
-      setSaveState("saving");
+      const ensuredId = await ensureResumeId();
+      if (!ensuredId) {
+        setEducationSaveState("error");
+        return false;
+      }
+
+      setEducationSaveState("saving");
       try {
-        const payload = target.map((item) => ({
-          ...item,
-          faculty: item.faculty ?? "",
-          end: item.present ? "" : item.end ?? "",
-        }));
         const res = await fetch("/api/data/education", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ resumeId: id, items: payload }),
+          body: JSON.stringify({ resumeId: ensuredId, items: payload }),
           cache: "no-store",
         });
         if (!res.ok) {
-          const text = await res.text();
-          throw new Error(text || `failed to save education: ${res.status}`);
+          throw new Error(`failed to save education: ${res.status}`);
         }
-        setSaveState("saved");
-        saveTimerRef.current = setTimeout(() => {
-          setSaveState("idle");
-          saveTimerRef.current = null;
-        }, 1200);
+        resumeIdRef.current = ensuredId;
+        setResumeId(ensuredId);
+        lastEducationSnapshotRef.current = snapshot;
+        setEducationSaveState("saved");
+        setTimeout(() => setEducationSaveState("idle"), 1200);
         return true;
       } catch (error) {
         console.error("Failed to save education", error);
-        setSaveState("error");
+        setEducationSaveState("error");
         return false;
       }
     },
     [ensureResumeId]
   );
 
-  const updateItems = useCallback(
-    (updater: (prev: EducationItem[]) => EducationItem[], options?: { persist?: boolean }) => {
-      let nextState: EducationItem[] = itemsRef.current;
-      setItems((prev) => {
-        const next = updater(prev);
-        nextState = next;
-        return next;
-      });
-      itemsRef.current = nextState;
-      if (options?.persist) {
-        void persistEducation(nextState);
+  const saveHighestEducation = useCallback(
+    async (value: FinalEducation, options: { force?: boolean } = {}) => {
+      if (!options.force && value === lastHighestSnapshotRef.current && resumeIdRef.current) {
+        return true;
+      }
+
+      const ensuredId = await ensureResumeId();
+      if (!ensuredId) {
+        setFinalSaveState("error");
+        return false;
+      }
+
+      setFinalSaveState("saving");
+      try {
+        const res = await fetch("/api/data/resume", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: ensuredId, highestEducation: value }),
+          cache: "no-store",
+        });
+        if (!res.ok) {
+          throw new Error(`failed to save highest education: ${res.status}`);
+        }
+        const json = (await res.json()) as ResumeResponse;
+        const id = typeof json.id === "string" && json.id ? json.id : ensuredId;
+        resumeIdRef.current = id;
+        setResumeId(id);
+        lastHighestSnapshotRef.current = value;
+        setFinalSaveState("saved");
+        setTimeout(() => setFinalSaveState("idle"), 1200);
+        return true;
+      } catch (error) {
+        console.error("Failed to save highest education", error);
+        setFinalSaveState("error");
+        return false;
       }
     },
-    [persistEducation]
+    [ensureResumeId]
   );
+
+  const autoSaveEducationPayload = listValidation.success ? listValidation.data : null;
+  useAutoSave(autoSaveEducationPayload, async (value) => {
+    if (!value) return;
+    await saveEducation(value);
+  }, 2000, { enabled: Boolean(autoSaveEducationPayload) && !isHydrating });
+
+  const autoSaveHighestPayload = finalEducation ? finalEducation : null;
+  useAutoSave(autoSaveHighestPayload, async (value) => {
+    if (!value) return;
+    await saveHighestEducation(value);
+  }, 2000, { enabled: Boolean(autoSaveHighestPayload) && !isHydrating });
+
+  const updateItems = useCallback((updater: (prev: EducationItem[]) => EducationItem[]) => {
+    setItems((prev) => {
+      const next = updater(prev);
+      itemsRef.current = next;
+      return next;
+    });
+  }, []);
 
   const handleItemChange = useCallback(
     (index: number, key: keyof Omit<EducationItem, "present">) =>
@@ -386,42 +382,32 @@ export default function EducationForm() {
     [updateItems]
   );
 
-  const handleItemBlur = useCallback(() => {
-    void persistEducation();
-  }, [persistEducation]);
-
   const handlePresentChange = useCallback(
     (index: number) => (event: ChangeEvent<HTMLInputElement>) => {
       const checked = event.target.checked;
-      updateItems(
-        (prev) => {
-          const next = [...prev];
-          next[index] = {
-            ...next[index],
-            present: checked,
-            end: checked ? "" : next[index].end,
-          };
-          return next;
-        },
-        { persist: true }
-      );
+      updateItems((prev) => {
+        const next = [...prev];
+        next[index] = {
+          ...next[index],
+          present: checked,
+          end: checked ? "" : next[index].end,
+        };
+        return next;
+      });
     },
     [updateItems]
   );
 
   const handleAddRow = useCallback(() => {
-    updateItems((prev) => [...prev, { ...defaultItem }], { persist: true });
+    updateItems((prev) => [...prev, { ...defaultItem }]);
   }, [updateItems]);
 
   const handleRemoveRow = useCallback(
     (index: number) => {
-      updateItems(
-        (prev) => {
-          if (prev.length === 1) return [{ ...defaultItem }];
-          return prev.filter((_, rowIndex) => rowIndex !== index);
-        },
-        { persist: true }
-      );
+      updateItems((prev) => {
+        if (prev.length === 1) return [{ ...defaultItem }];
+        return prev.filter((_, rowIndex) => rowIndex !== index);
+      });
     },
     [updateItems]
   );
@@ -431,14 +417,17 @@ export default function EducationForm() {
     setFinalEducation(event.target.value as FinalEducation | "");
   }, []);
 
-  const nextDisabled =
-    isHydrating || isSubmitting || finalEducation === "" || Boolean(listError);
-
   const infoMessage = useMemo(() => {
     if (isHydrating) return "入力済みの学歴を読み込み中です";
     if (loadError) return loadError;
     return null;
   }, [isHydrating, loadError]);
+
+  const nextDisabled =
+    isHydrating ||
+    isSubmitting ||
+    !listValidation.success ||
+    finalEducation === "";
 
   const handleSubmit = useCallback(
     async (event: FormEvent<HTMLFormElement>) => {
@@ -446,58 +435,33 @@ export default function EducationForm() {
       setFinalTouched(true);
       setSubmitError(null);
 
-      const listResult = EducationListSchema.safeParse(itemsRef.current);
-      if (!listResult.success || finalEducation === "") {
+      if (!listValidation.success || finalEducation === "") {
         return;
       }
 
       setIsSubmitting(true);
       try {
-        const saved = await persistEducation(itemsRef.current);
-        if (!saved) {
+        const savedEducation = await saveEducation(listValidation.data, { force: true });
+        if (!savedEducation) {
           throw new Error("failed to save education rows");
         }
 
-        const id = ensureResumeId();
-        if (!id) {
-          throw new Error("resume id missing");
-        }
-
-        const notePayload = createNotePayload(resumeStatusRef.current, finalEducation as FinalEducation);
-        const res = await fetch("/api/data/resume", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            draftId: id,
-            step: 2 as const,
-            data: {
-              status: "student" as const,
-              note: JSON.stringify(notePayload),
-            },
-          }),
-          cache: "no-store",
+        const savedHighest = await saveHighestEducation(finalEducation as FinalEducation, {
+          force: true,
         });
-
-        if (!res.ok) {
-          const text = await res.text();
-          throw new Error(text || `failed to save final education: ${res.status}`);
+        if (!savedHighest) {
+          throw new Error("failed to save highest education");
         }
-
-        resumeStatusRef.current = {
-          ...resumeStatusRef.current,
-          finalEducation: finalEducation as FinalEducation,
-          version: notePayload.version as string | undefined,
-        };
 
         router.push("/resume/4");
       } catch (error) {
         console.error("Failed to submit education form", error);
-        setSubmitError("最終学歴の保存に失敗しました。時間をおいて再度お試しください。");
+        setSubmitError("保存に失敗しました。時間をおいて再度お試しください。");
       } finally {
         setIsSubmitting(false);
       }
     },
-    [ensureResumeId, finalEducation, persistEducation, router]
+    [finalEducation, listValidation, router, saveEducation, saveHighestEducation]
   );
 
   return (
@@ -505,12 +469,12 @@ export default function EducationForm() {
       <div style={{ marginBottom: "24px" }}>
         <h2 className="resume-page-title">学歴</h2>
         <p style={{ fontSize: "0.875rem", color: "var(--color-text-muted, #6b7280)" }}>
-          在籍期間と学校名を入力してください。入力内容はフィールドから離れたタイミングで自動保存されます。
+          在籍期間と学校名を入力してください。入力内容は2秒後に自動保存されます。
         </p>
         {infoMessage && (
           <p
             id="education-status"
-            role="status"
+            role={loadError ? "alert" : "status"}
             style={{ marginTop: "8px", fontSize: "0.875rem", color: loadError ? "#dc2626" : "#6b7280" }}
           >
             {infoMessage}
@@ -546,7 +510,168 @@ export default function EducationForm() {
         )}
       </div>
 
-      <div style={{ marginBottom: "24px" }}>
+      <div style={{ display: "grid", gap: "16px", marginBottom: "24px" }}>
+        {items.map((item, index) => (
+          <div
+            key={index}
+            style={{
+              border: "1px solid var(--color-border, #d1d5db)",
+              borderRadius: "12px",
+              padding: "16px",
+              display: "grid",
+              gap: "12px",
+            }}
+          >
+            <div style={{ display: "grid", gap: "8px" }}>
+              <label style={{ fontWeight: 600 }}>
+                学校名 <span aria-hidden="true" style={{ color: "#ef4444" }}>*</span>
+                <input
+                  value={item.schoolName}
+                  onChange={handleItemChange(index, "schoolName")}
+                  aria-invalid={Boolean(rowErrors[index]?.schoolName)}
+                  aria-describedby={rowErrors[index]?.schoolName ? `error-school-${index}` : undefined}
+                  style={{
+                    marginTop: "4px",
+                    width: "100%",
+                    borderRadius: "8px",
+                    border: `1px solid ${rowErrors[index]?.schoolName ? "#dc2626" : "var(--color-border, #d1d5db)"}`,
+                    padding: "10px 12px",
+                  }}
+                />
+              </label>
+              {rowErrors[index]?.schoolName && (
+                <p
+                  id={`error-school-${index}`}
+                  role="alert"
+                  style={{ fontSize: "0.75rem", color: "#dc2626" }}
+                >
+                  {rowErrors[index]!.schoolName}
+                </p>
+              )}
+            </div>
+
+            <div style={{ display: "grid", gap: "8px" }}>
+              <label style={{ fontWeight: 600 }}>
+                学部・学科
+                <input
+                  value={item.faculty}
+                  onChange={handleItemChange(index, "faculty")}
+                  style={{
+                    marginTop: "4px",
+                    width: "100%",
+                    borderRadius: "8px",
+                    border: `1px solid ${rowErrors[index]?.faculty ? "#dc2626" : "var(--color-border, #d1d5db)"}`,
+                    padding: "10px 12px",
+                  }}
+                />
+              </label>
+              {rowErrors[index]?.faculty && (
+                <p
+                  role="alert"
+                  style={{ fontSize: "0.75rem", color: "#dc2626" }}
+                >
+                  {rowErrors[index]!.faculty}
+                </p>
+              )}
+            </div>
+
+            <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
+              <label style={{ flex: 1, minWidth: "140px" }}>
+                入学年月 <span aria-hidden="true" style={{ color: "#ef4444" }}>*</span>
+                <input
+                  type="month"
+                  value={item.start}
+                  onChange={handleItemChange(index, "start")}
+                  aria-invalid={Boolean(rowErrors[index]?.start)}
+                  aria-describedby={rowErrors[index]?.start ? `error-start-${index}` : undefined}
+                  style={{
+                    marginTop: "4px",
+                    width: "100%",
+                    borderRadius: "8px",
+                    border: `1px solid ${rowErrors[index]?.start ? "#dc2626" : "var(--color-border, #d1d5db)"}`,
+                    padding: "10px 12px",
+                  }}
+                />
+              </label>
+              {!item.present && (
+                <label style={{ flex: 1, minWidth: "140px" }}>
+                  卒業年月
+                  <input
+                    type="month"
+                    value={item.end}
+                    onChange={handleItemChange(index, "end")}
+                    aria-invalid={Boolean(rowErrors[index]?.end)}
+                    aria-describedby={rowErrors[index]?.end ? `error-end-${index}` : undefined}
+                    style={{
+                      marginTop: "4px",
+                      width: "100%",
+                      borderRadius: "8px",
+                      border: `1px solid ${rowErrors[index]?.end ? "#dc2626" : "var(--color-border, #d1d5db)"}`,
+                      padding: "10px 12px",
+                    }}
+                  />
+                </label>
+              )}
+            </div>
+            {(rowErrors[index]?.start || rowErrors[index]?.end) && (
+              <p
+                role="alert"
+                style={{ fontSize: "0.75rem", color: "#dc2626" }}
+              >
+                {rowErrors[index]?.start ?? rowErrors[index]?.end}
+              </p>
+            )}
+
+            <label style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <input
+                type="checkbox"
+                checked={item.present}
+                onChange={handlePresentChange(index)}
+              />
+              在学中
+            </label>
+
+            <div style={{ display: "flex", justifyContent: "flex-end" }}>
+              <button
+                type="button"
+                onClick={() => handleRemoveRow(index)}
+                style={{
+                  border: "none",
+                  background: "transparent",
+                  color: "var(--color-primary, #2563eb)",
+                  cursor: "pointer",
+                  fontWeight: 600,
+                }}
+              >
+                行を削除
+              </button>
+            </div>
+          </div>
+        ))}
+
+        <button
+          type="button"
+          onClick={handleAddRow}
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "6px",
+            border: "1px dashed var(--color-primary, #2563eb)",
+            background: "rgba(37, 99, 235, 0.08)",
+            color: "var(--color-primary, #2563eb)",
+            borderRadius: "9999px",
+            padding: "10px 18px",
+            fontWeight: 600,
+            cursor: "pointer",
+          }}
+        >
+          ＋ 学校を追加
+        </button>
+      </div>
+
+      <AutoSaveBadge state={educationSaveState} />
+
+      <div style={{ marginTop: "24px" }}>
         <span
           id="final-education-label"
           style={{ display: "block", fontWeight: 600, marginBottom: "8px" }}
@@ -592,9 +717,7 @@ export default function EducationForm() {
                   cursor: "pointer",
                   fontSize: "0.95rem",
                   transition: "border-color 0.2s ease, background-color 0.2s ease",
-                  boxShadow: isFocused
-                    ? "0 0 0 4px rgba(37, 99, 235, 0.15)"
-                    : "none",
+                  boxShadow: isFocused ? "0 0 0 4px rgba(37, 99, 235, 0.15)" : "none",
                 }}
               >
                 <input
@@ -604,19 +727,10 @@ export default function EducationForm() {
                   checked={checked}
                   onChange={handleFinalEducationChange}
                   onFocus={() => setFocusedFinalEducation(option)}
-                  onBlur={() => {
-                    setFinalTouched(true);
-                    setFocusedFinalEducation(null);
-                  }}
-                  disabled={isSubmitting}
-                  style={{
-                    position: "absolute",
-                    inset: 0,
-                    opacity: 0,
-                    cursor: "pointer",
-                  }}
+                  onBlur={() => setFocusedFinalEducation(null)}
+                  style={{ display: "none" }}
                 />
-                {option}
+                <span>{option}</span>
               </label>
             );
           })}
@@ -630,219 +744,13 @@ export default function EducationForm() {
             最終学歴を選択してください
           </p>
         )}
-      </div>
-
-      <div style={{ display: "grid", gap: "16px" }}>
-        {items.map((item, index) => {
-          const errors = rowErrors[index] ?? {};
-          const rowId = `education-${index}`;
-
-          return (
-            <fieldset
-              key={`${rowId}`}
-              style={{
-                border: "1px solid #e5e7eb",
-                borderRadius: "12px",
-                padding: "16px",
-                display: "grid",
-                gap: "12px",
-                backgroundColor: "#ffffff",
-              }}
-            >
-              <legend style={{ fontSize: "1rem", fontWeight: 600 }}>学校 {index + 1}</legend>
-
-              <div
-                style={{
-                  display: "grid",
-                  gap: "12px",
-                  gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
-                }}
-              >
-                <div>
-                  <label htmlFor={`${rowId}-school`} style={{ display: "block", fontWeight: 600, fontSize: "0.9rem" }}>
-                    学校名 <span aria-hidden="true" style={{ color: "#ef4444" }}>*</span>
-                  </label>
-                  <input
-                    id={`${rowId}-school`}
-                    type="text"
-                    value={item.schoolName}
-                    onChange={handleItemChange(index, "schoolName")}
-                    onBlur={handleItemBlur}
-                    aria-invalid={Boolean(errors.schoolName)}
-                    aria-describedby={errors.schoolName ? `${rowId}-school-error` : undefined}
-                    disabled={isSubmitting}
-                    style={{
-                      marginTop: "4px",
-                      width: "100%",
-                      borderRadius: "8px",
-                      border: "1px solid var(--color-border, #d1d5db)",
-                      padding: "8px 12px",
-                    }}
-                  />
-                  {errors.schoolName && (
-                    <p
-                      id={`${rowId}-school-error`}
-                      role="alert"
-                      style={{ marginTop: "4px", fontSize: "0.75rem", color: "#dc2626" }}
-                    >
-                      {errors.schoolName}
-                    </p>
-                  )}
-                </div>
-
-                <div>
-                  <label htmlFor={`${rowId}-faculty`} style={{ display: "block", fontWeight: 600, fontSize: "0.9rem" }}>
-                    学部・学科 (任意)
-                  </label>
-                  <input
-                    id={`${rowId}-faculty`}
-                    type="text"
-                    value={item.faculty}
-                    onChange={handleItemChange(index, "faculty")}
-                    onBlur={handleItemBlur}
-                    disabled={isSubmitting}
-                    style={{
-                      marginTop: "4px",
-                      width: "100%",
-                      borderRadius: "8px",
-                      border: "1px solid var(--color-border, #d1d5db)",
-                      padding: "8px 12px",
-                    }}
-                  />
-                </div>
-
-                <div>
-                  <label htmlFor={`${rowId}-start`} style={{ display: "block", fontWeight: 600, fontSize: "0.9rem" }}>
-                    入学年月 <span aria-hidden="true" style={{ color: "#ef4444" }}>*</span>
-                  </label>
-                  <input
-                    id={`${rowId}-start`}
-                    type="month"
-                    value={item.start}
-                    onChange={handleItemChange(index, "start")}
-                    onBlur={handleItemBlur}
-                    aria-invalid={Boolean(errors.start)}
-                    aria-describedby={errors.start ? `${rowId}-start-error` : undefined}
-                    disabled={isSubmitting}
-                    style={{
-                      marginTop: "4px",
-                      width: "100%",
-                      borderRadius: "8px",
-                      border: "1px solid var(--color-border, #d1d5db)",
-                      padding: "8px 12px",
-                    }}
-                  />
-                  {errors.start && (
-                    <p
-                      id={`${rowId}-start-error`}
-                      role="alert"
-                      style={{ marginTop: "4px", fontSize: "0.75rem", color: "#dc2626" }}
-                    >
-                      {errors.start}
-                    </p>
-                  )}
-                </div>
-
-                <div>
-                  <label htmlFor={`${rowId}-end`} style={{ display: "block", fontWeight: 600, fontSize: "0.9rem" }}>
-                    卒業年月 (任意)
-                  </label>
-                  <input
-                    id={`${rowId}-end`}
-                    type="month"
-                    value={item.end}
-                    onChange={handleItemChange(index, "end")}
-                    onBlur={handleItemBlur}
-                    aria-invalid={Boolean(errors.end)}
-                    aria-describedby={errors.end ? `${rowId}-end-error` : undefined}
-                    disabled={isSubmitting || item.present}
-                    style={{
-                      marginTop: "4px",
-                      width: "100%",
-                      borderRadius: "8px",
-                      border: "1px solid var(--color-border, #d1d5db)",
-                      padding: "8px 12px",
-                      backgroundColor: item.present ? "#f3f4f6" : "#fff",
-                    }}
-                  />
-                  {errors.end && (
-                    <p
-                      id={`${rowId}-end-error`}
-                      role="alert"
-                      style={{ marginTop: "4px", fontSize: "0.75rem", color: "#dc2626" }}
-                    >
-                      {errors.end}
-                    </p>
-                  )}
-                  <label
-                    style={{
-                      marginTop: "8px",
-                      display: "inline-flex",
-                      alignItems: "center",
-                      gap: "8px",
-                      fontSize: "0.85rem",
-                    }}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={item.present}
-                      onChange={handlePresentChange(index)}
-                      disabled={isSubmitting}
-                    />
-                    在学中 (終了年月なし)
-                  </label>
-                </div>
-              </div>
-
-              <div style={{ display: "flex", justifyContent: "flex-end" }}>
-                <button
-                  type="button"
-                  onClick={() => handleRemoveRow(index)}
-                  style={{
-                    border: "1px solid #d1d5db",
-                    borderRadius: "8px",
-                    padding: "6px 12px",
-                    fontSize: "0.8rem",
-                    backgroundColor: "#fff",
-                    color: "#1f2937",
-                    cursor: "pointer",
-                  }}
-                  disabled={isSubmitting && items.length === 1}
-                >
-                  削除
-                </button>
-              </div>
-            </fieldset>
-          );
-        })}
-      </div>
-
-      <div
-        style={{
-          marginTop: "16px",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          gap: "12px",
-        }}
-      >
-        <button
-          type="button"
-          onClick={handleAddRow}
-          style={{
-            borderRadius: "9999px",
-            padding: "10px 20px",
-            fontSize: "0.9rem",
-            border: "none",
-            backgroundColor: "var(--color-primary, #2563eb)",
-            color: "#fff",
-            cursor: "pointer",
-          }}
-          disabled={isSubmitting}
-        >
-          学校を追加
-        </button>
-        <AutoSaveBadge state={saveState} />
+        {finalSaveState !== "idle" && (
+          <p style={{ marginTop: "8px", fontSize: "0.75rem", color: "var(--color-secondary, #6b7280)" }}>
+            {finalSaveState === "saving" && "最終学歴を保存中…"}
+            {finalSaveState === "saved" && "最終学歴を保存しました"}
+            {finalSaveState === "error" && "最終学歴の保存に失敗しました"}
+          </p>
+        )}
       </div>
 
       <StepNav step={3} nextType="submit" nextDisabled={nextDisabled} />
