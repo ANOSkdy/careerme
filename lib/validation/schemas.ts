@@ -13,6 +13,22 @@ const qaFieldSchema = z
   .min(10, qaMessageMin)
   .max(600, qaMessageMax);
 
+const genderRequiredMessage = "性別を選択してください";
+const genderSelectionSchema = z.enum(["male", "female", "none"]);
+
+function assertGenderSelected(
+  value: z.infer<typeof genderSelectionSchema> | undefined,
+  ctx: z.RefinementCtx
+) {
+  if (typeof value !== "undefined" && value === "none") {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: genderRequiredMessage,
+      path: ["gender"],
+    });
+  }
+}
+
 export const CvQaSchema = z.object({
   q1: qaFieldSchema,
   q2: qaFieldSchema,
@@ -103,22 +119,30 @@ function requiredName(message: string) {
     .max(100, "100文字以内で入力してください");
 }
 
-export const BasicInfoSchema = z.object({
-  lastName: requiredName("姓を入力してください"),
-  firstName: requiredName("名を入力してください"),
-  dob: DobSchema,
-  gender: z.enum(["male", "female", "none"]).default("none"),
-});
+export const BasicInfoSchema = z
+  .object({
+    lastName: requiredName("姓を入力してください"),
+    firstName: requiredName("名を入力してください"),
+    dob: DobSchema,
+    gender: genderSelectionSchema.default("none"),
+  })
+  .superRefine((value, ctx) => {
+    assertGenderSelected(value.gender, ctx);
+  });
 
 export type BasicInfo = z.infer<typeof BasicInfoSchema>;
 export type DobValue = z.infer<typeof DobSchema>;
 
-export const BasicInfoPartialSchema = z.object({
-  lastName: requiredName("姓を入力してください").optional(),
-  firstName: requiredName("名を入力してください").optional(),
-  dob: DobSchema.partial().optional(),
-  gender: z.enum(["male", "female", "none"]).optional(),
-});
+export const BasicInfoPartialSchema = z
+  .object({
+    lastName: requiredName("姓を入力してください").optional(),
+    firstName: requiredName("名を入力してください").optional(),
+    dob: DobSchema.partial().optional(),
+    gender: genderSelectionSchema.optional(),
+  })
+  .superRefine((value, ctx) => {
+    assertGenderSelected(value.gender, ctx);
+  });
 
 export type BasicInfoPartial = z.infer<typeof BasicInfoPartialSchema>;
 
@@ -255,10 +279,13 @@ export const ExperienceListSchema = z
   .array(ExperienceItemSchema)
   .min(1, "職歴を1件以上追加してください");
 
+export const ResumeFreeTextSchema = z.string().max(2000);
+
 export const ResumeSchema = z.object({
   certifications: z.array(z.string()).optional(),
   qa: CvQaSchema.optional(),
-  selfPr: z.string().max(2000).optional(),
+  selfPr: ResumeFreeTextSchema.optional(),
+  summary: ResumeFreeTextSchema.optional(),
 });
 
 export type Resume = z.infer<typeof ResumeSchema>;

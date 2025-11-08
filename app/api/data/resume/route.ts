@@ -15,9 +15,12 @@ import {
 } from "../../../../lib/db/airtable";
 import {
   BasicInfoSchema,
+  CvQaSchema,
   HighestEducationSchema,
+  ResumeFreeTextSchema,
   ResumeStatusSchema,
   type BasicInfo,
+  type CvQa,
   type HighestEducation,
   type ResumeStatus,
 } from "../../../../lib/validation/schemas";
@@ -50,17 +53,29 @@ function handleMemoryPost(
   req: NextRequest,
   payload: z.infer<typeof UpdatePayloadSchema>
 ) {
-  const { id: bodyId, basicInfo, status, highestEducation, touch } = payload;
+  const {
+    id: bodyId,
+    basicInfo,
+    status,
+    highestEducation,
+    qa,
+    selfPr,
+    summary,
+    touch,
+  } = payload;
   const anonCookie = readAnonKey(req);
   const existing = findMemoryResume(bodyId ?? null, anonCookie);
 
-  let resumeId = existing?.id ?? bodyId ?? randomUUID();
-  let anonKey = existing?.anonKey ?? anonCookie ?? generateAnonKey();
+  const resumeId = existing?.id ?? bodyId ?? randomUUID();
+  const anonKey = existing?.anonKey ?? anonCookie ?? generateAnonKey();
 
   const hasUpdates =
     Boolean(basicInfo) ||
     Boolean(status) ||
-    typeof highestEducation !== "undefined";
+    typeof highestEducation !== "undefined" ||
+    typeof qa !== "undefined" ||
+    typeof selfPr !== "undefined" ||
+    typeof summary !== "undefined";
 
   if (!hasUpdates && !touch) {
     const response = NextResponse.json({ id: resumeId });
@@ -90,6 +105,15 @@ function handleMemoryPost(
   if (typeof highestEducation !== "undefined") {
     updated.highestEducation = highestEducation;
   }
+  if (typeof qa !== "undefined") {
+    updated.qa = qa ?? undefined;
+  }
+  if (typeof selfPr !== "undefined") {
+    updated.selfPr = selfPr;
+  }
+  if (typeof summary !== "undefined") {
+    updated.summary = summary;
+  }
 
   writeMemoryResume(updated);
 
@@ -104,11 +128,21 @@ const UpdatePayloadSchema = z
     basicInfo: BasicInfoSchema.optional(),
     status: ResumeStatusSchema.optional(),
     highestEducation: HighestEducationSchema.optional(),
+    qa: CvQaSchema.optional(),
+    selfPr: ResumeFreeTextSchema.optional(),
+    summary: ResumeFreeTextSchema.optional(),
     touch: z.boolean().optional(),
   })
   .superRefine((value, ctx) => {
     if (value.touch) return;
-    if (value.basicInfo || value.status || typeof value.highestEducation !== "undefined") {
+    if (
+      value.basicInfo ||
+      value.status ||
+      typeof value.highestEducation !== "undefined" ||
+      typeof value.qa !== "undefined" ||
+      typeof value.selfPr !== "undefined" ||
+      typeof value.summary !== "undefined"
+    ) {
       return;
     }
     ctx.addIssue({
@@ -124,6 +158,9 @@ type ResumeFields = {
   step1?: string;
   step2?: string;
   highestEducation?: string;
+  qa?: string;
+  selfPr?: string;
+  summary?: string;
   createdAt?: string;
   updatedAt?: string;
 };
@@ -162,7 +199,17 @@ async function findResumeRecord(id: string | null, anonKey: string | null) {
   if (!filter) return null;
   const records = await listAirtableRecords<ResumeFields>(TABLE_NAME, {
     filterByFormula: filter,
-    fields: ["resumeId", "draftId", "anonKey", "step1", "step2", "highestEducation"],
+    fields: [
+      "resumeId",
+      "draftId",
+      "anonKey",
+      "step1",
+      "step2",
+      "highestEducation",
+      "qa",
+      "selfPr",
+      "summary",
+    ],
     maxRecords: 1,
   });
   return records[0] ?? null;
@@ -188,6 +235,9 @@ export async function GET(req: NextRequest) {
         basicInfo: record?.basicInfo ?? null,
         status: record?.status ?? null,
         highestEducation: record?.highestEducation ?? null,
+        qa: record?.qa ?? null,
+        selfPr: record?.selfPr ?? null,
+        summary: record?.summary ?? null,
       });
 
       const anonKey = record?.anonKey ?? anonCookie ?? generateAnonKey();
@@ -205,12 +255,20 @@ export async function GET(req: NextRequest) {
       ? parseJsonField<ResumeStatus>(record.fields.step2, ResumeStatusSchema)
       : null;
     const highestEducation = parseHighestEducation(record?.fields.highestEducation);
+    const qa = record?.fields.qa
+      ? parseJsonField<CvQa>(record.fields.qa, CvQaSchema)
+      : null;
+    const selfPr = typeof record?.fields.selfPr === "string" ? record.fields.selfPr : null;
+    const summary = typeof record?.fields.summary === "string" ? record.fields.summary : null;
 
     const response = NextResponse.json({
       id: resumeId,
       basicInfo,
       status,
       highestEducation,
+      qa,
+      selfPr,
+      summary,
     });
 
     const anonKey = record?.fields.anonKey ?? anonCookie ?? generateAnonKey();
@@ -239,23 +297,35 @@ export async function POST(req: NextRequest) {
       return handleMemoryPost(req, parsed.data);
     }
 
-    const { id: bodyId, basicInfo, status, highestEducation, touch } = parsed.data;
+    const {
+      id: bodyId,
+      basicInfo,
+      status,
+      highestEducation,
+      qa,
+      selfPr,
+      summary,
+      touch,
+    } = parsed.data;
     const anonCookie = readAnonKey(req);
 
     const existingRecord = await findResumeRecord(bodyId ?? null, anonCookie);
 
-    let resumeId =
+    const resumeId =
       existingRecord?.fields.resumeId ??
       existingRecord?.fields.draftId ??
       bodyId ??
       randomUUID();
 
-    let anonKey = existingRecord?.fields.anonKey ?? anonCookie ?? generateAnonKey();
+    const anonKey = existingRecord?.fields.anonKey ?? anonCookie ?? generateAnonKey();
 
     const hasUpdates =
       Boolean(basicInfo) ||
       Boolean(status) ||
-      typeof highestEducation !== "undefined";
+      typeof highestEducation !== "undefined" ||
+      typeof qa !== "undefined" ||
+      typeof selfPr !== "undefined" ||
+      typeof summary !== "undefined";
 
     if (!hasUpdates && !touch) {
       const response = NextResponse.json({ id: resumeId });
@@ -279,6 +349,15 @@ export async function POST(req: NextRequest) {
     }
     if (typeof highestEducation !== "undefined") {
       fields.highestEducation = highestEducation;
+    }
+    if (typeof qa !== "undefined") {
+      fields.qa = JSON.stringify(qa);
+    }
+    if (typeof selfPr !== "undefined") {
+      fields.selfPr = selfPr;
+    }
+    if (typeof summary !== "undefined") {
+      fields.summary = summary;
     }
 
     if (existingRecord) {

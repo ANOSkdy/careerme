@@ -4,7 +4,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 
 import { generateGeminiText } from '../../../../lib/ai/gemini';
-import { updateResumeDraft } from '../../../../lib/db/resumes';
 
 const requestSchema = z.object({
   resumeId: z.string().min(1, 'resumeId is required'),
@@ -68,23 +67,34 @@ export async function POST(req: NextRequest) {
       maxOutputTokens: 512,
     });
 
+    let saved = false;
+    let warn: string | undefined;
+
     try {
-      await updateResumeDraft(payload.resumeId, { summary_draft: text });
-      return NextResponse.json({
-        ok: true,
-        text,
-        saved: true,
-        resumeId: payload.resumeId,
+      const response = await fetch(`${req.nextUrl.origin}/api/data/resume`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ id: payload.resumeId, summary: text }),
+        cache: 'no-store',
       });
-    } catch (airtableError) {
-      return NextResponse.json({
-        ok: true,
-        text,
-        saved: false,
-        resumeId: payload.resumeId,
-        warn: airtableError instanceof Error ? airtableError.message : String(airtableError),
-      });
+
+      if (!response.ok) {
+        const detail = await response.text();
+        throw new Error(detail || `Failed to save summary (${response.status})`);
+      }
+
+      saved = true;
+    } catch (error) {
+      warn = error instanceof Error ? error.message : String(error);
     }
+
+    return NextResponse.json({
+      ok: true,
+      text,
+      saved,
+      resumeId: payload.resumeId,
+      warn,
+    });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     return NextResponse.json({ ok: false, error: { message } }, { status: 500 });

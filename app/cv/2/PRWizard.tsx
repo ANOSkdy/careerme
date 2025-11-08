@@ -1,24 +1,26 @@
 'use client';
 
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import {
   useCallback,
   useEffect,
-  useMemo,
   useRef,
   useState,
+  type ChangeEvent,
+  type FocusEvent,
 } from 'react';
-import type { ChangeEvent, FocusEvent } from 'react';
 
 import { CvQaSchema, type CvQa } from '../../../lib/validation/schemas';
 
 type QuestionKey = keyof CvQa;
 type QaState = Record<QuestionKey, string>;
 type ToastState = { message: string; variant: 'success' | 'error' | 'info' };
-
 type SaveStatus = 'idle' | 'saving' | 'saved' | 'error';
-
 type SaveOptions = { skipIfUnchanged?: boolean };
+type ResumeResponse = {
+  id?: string | null;
+  qa?: CvQa | null;
+};
 
 const MIN_MESSAGE = '10文字以上で入力してください';
 const MAX_MESSAGE = '600文字以内で入力してください';
@@ -102,62 +104,30 @@ function getFieldError(value: string): string | undefined {
   return undefined;
 }
 
-function extractQa(payload: unknown): QaState | null {
-  if (!payload || typeof payload !== 'object') return null;
-  const candidates: Array<unknown> = [];
-  const direct = (payload as Record<string, unknown>).qa;
-  if (direct) candidates.push(direct);
-  const rawFields = (payload as Record<string, unknown>).fields;
-  if (rawFields && typeof rawFields === 'object') {
-    candidates.push((rawFields as Record<string, unknown>).qa);
-  }
-
-  for (const candidate of candidates) {
-    if (!candidate || typeof candidate !== 'object') continue;
-    const q1 = typeof (candidate as Record<string, unknown>).q1 === 'string'
-      ? ((candidate as Record<string, unknown>).q1 as string)
-      : '';
-    const q2 = typeof (candidate as Record<string, unknown>).q2 === 'string'
-      ? ((candidate as Record<string, unknown>).q2 as string)
-      : '';
-    const q3 = typeof (candidate as Record<string, unknown>).q3 === 'string'
-      ? ((candidate as Record<string, unknown>).q3 as string)
-      : '';
-    const q4 = typeof (candidate as Record<string, unknown>).q4 === 'string'
-      ? ((candidate as Record<string, unknown>).q4 as string)
-      : '';
-
-    if ([q1, q2, q3, q4].some((value) => value.length > 0)) {
-      return { q1, q2, q3, q4 };
-    }
-  }
-
-  return null;
-}
-
 export default function PRWizard() {
   const router = useRouter();
-  const params = useSearchParams();
-
-  const [resumeIdInput, setResumeIdInput] = useState('');
   const [qa, setQa] = useState<QaState>(EMPTY_QA);
   const [touched, setTouched] = useState<Record<QuestionKey, boolean>>(EMPTY_TOUCHED);
   const [errors, setErrors] = useState<Record<QuestionKey, string | undefined>>(EMPTY_ERRORS);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
   const [saveError, setSaveError] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [isGenerating, setIsGenerating] = useState(false);
   const [toast, setToast] = useState<ToastState | null>(null);
+  const [resumeId, setResumeId] = useState<string | null>(null);
 
-  const qaRef = useRef<QaState>(qa);
+  const qaRef = useRef<QaState>(EMPTY_QA);
   const lastSavedSnapshot = useRef<string>(JSON.stringify(sanitizeQa(EMPTY_QA)));
-  const resumeIdCacheRef = useRef<string>('');
-
-  const resumeId = useMemo(() => resumeIdInput.trim(), [resumeIdInput]);
+  const resumeIdRef = useRef<string | null>(null);
+  const ensureIdPromiseRef = useRef<Promise<string | null> | null>(null);
 
   useEffect(() => {
     qaRef.current = qa;
   }, [qa]);
+
+  useEffect(() => {
+    resumeIdRef.current = resumeId;
+  }, [resumeId]);
 
   useEffect(() => {
     if (saveStatus !== 'saved') return undefined;
@@ -171,125 +141,130 @@ export default function PRWizard() {
     return () => window.clearTimeout(timer);
   }, [toast]);
 
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const urlId = params.get('id')?.trim() ?? '';
-    let stored = '';
-    try {
-      stored = window.localStorage.getItem('resumeId')?.trim() ?? '';
-    } catch {
-      stored = '';
-    }
-    const next = urlId || stored;
-    if (next && resumeIdCacheRef.current === next) {
-      return;
-    }
-    resumeIdCacheRef.current = next;
-    setResumeIdInput(next);
-    if (typeof window !== 'undefined') {
-      try {
-        if (next) {
-          window.localStorage.setItem('resumeId', next);
-        } else {
-          window.localStorage.removeItem('resumeId');
-        }
-      } catch {
-        // noop
-      }
-      window.dispatchEvent(new CustomEvent('resumeId-change', { detail: next }));
-    }
-  }, [params]);
+  const ensureResumeId = useCallback(async () => {
+    if (resumeIdRef.current) return resumeIdRef.current;
+    if (ensureIdPromiseRef.current) return ensureIdPromiseRef.current;
 
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const handleStorage = (event: StorageEvent) => {
-      if (event.key !== 'resumeId') return;
-      const value = event.newValue?.trim() ?? '';
-      resumeIdCacheRef.current = value;
-      setResumeIdInput(value);
-    };
-    const handleCustom = (event: Event) => {
-      const value = ((event as CustomEvent<string>).detail ?? '').trim();
-      resumeIdCacheRef.current = value;
-      setResumeIdInput(value);
-    };
-    window.addEventListener('storage', handleStorage);
-    window.addEventListener('resumeId-change', handleCustom as EventListener);
-    return () => {
-      window.removeEventListener('storage', handleStorage);
-      window.removeEventListener('resumeId-change', handleCustom as EventListener);
-    };
+    ensureIdPromiseRef.current = (async () => {
+      try {
+        const res = await fetch('/api/data/resume', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ touch: true }),
+          cache: 'no-store',
+        });
+        if (!res.ok) {
+          throw new Error(`failed to ensure resume id: ${res.status}`);
+        }
+        const data = (await res.json()) as ResumeResponse;
+        const id = typeof data.id === 'string' && data.id ? data.id : null;
+        if (id) {
+          resumeIdRef.current = id;
+          setResumeId(id);
+        }
+        return id;
+      } catch (error) {
+        console.error('Failed to ensure resume id', error);
+        return null;
+      } finally {
+        ensureIdPromiseRef.current = null;
+      }
+    })();
+
+    return ensureIdPromiseRef.current;
   }, []);
 
   useEffect(() => {
-    if (!resumeId) {
-      setQa(EMPTY_QA);
-      setTouched(EMPTY_TOUCHED);
-      setErrors(EMPTY_ERRORS);
-      setSaveStatus('idle');
-      setSaveError(null);
-      lastSavedSnapshot.current = JSON.stringify(sanitizeQa(EMPTY_QA));
-      setIsLoading(false);
-      return;
-    }
-
+    let cancelled = false;
     const controller = new AbortController();
     setIsLoading(true);
 
     (async () => {
       try {
-        const paramsForFetch = new URLSearchParams({ id: resumeId, draftId: resumeId });
-        const res = await fetch(`/api/data/resume?${paramsForFetch.toString()}`, {
+        const res = await fetch('/api/data/resume', {
           cache: 'no-store',
           signal: controller.signal,
         });
         if (!res.ok) {
-          throw new Error(`Failed to fetch resume QA (${res.status})`);
+          throw new Error(`failed to load resume QA: ${res.status}`);
         }
-        const data = await res.json();
-        const remote = extractQa(data);
-        const nextQa = remote ?? EMPTY_QA;
-        setQa(nextQa);
-        setTouched(EMPTY_TOUCHED);
-        setErrors(EMPTY_ERRORS);
-        lastSavedSnapshot.current = JSON.stringify(sanitizeQa(nextQa));
+        const data = (await res.json()) as ResumeResponse;
+        if (cancelled) return;
+
+        const id = typeof data.id === 'string' && data.id ? data.id : null;
+        if (id) {
+          resumeIdRef.current = id;
+          setResumeId(id);
+        }
+
+        if (data.qa) {
+          const parsed = CvQaSchema.safeParse(data.qa);
+          if (parsed.success) {
+            setQa(parsed.data);
+            qaRef.current = parsed.data;
+            lastSavedSnapshot.current = JSON.stringify(sanitizeQa(parsed.data));
+            setTouched(EMPTY_TOUCHED);
+            setErrors(EMPTY_ERRORS);
+          }
+        } else {
+          setQa(EMPTY_QA);
+          qaRef.current = EMPTY_QA;
+          lastSavedSnapshot.current = JSON.stringify(sanitizeQa(EMPTY_QA));
+          setTouched(EMPTY_TOUCHED);
+          setErrors(EMPTY_ERRORS);
+        }
+
         setSaveStatus('idle');
         setSaveError(null);
       } catch (error) {
-        if ((error as Error).name === 'AbortError') return;
-        console.error('Failed to load resume QA', error);
-        setToast({ message: '保存済みの回答を取得できませんでした。', variant: 'error' });
-        setSaveStatus('error');
-        setSaveError('読み込みに失敗しました。時間をおいて再試行してください。');
-        setQa(EMPTY_QA);
-        lastSavedSnapshot.current = JSON.stringify(sanitizeQa(EMPTY_QA));
+        if ((error as Error).name !== 'AbortError') {
+          console.error('Failed to load resume QA', error);
+          setToast({ message: '保存済みの回答を取得できませんでした。', variant: 'error' });
+          setSaveStatus('error');
+          setSaveError('読み込みに失敗しました。時間をおいて再試行してください。');
+          setQa(EMPTY_QA);
+          qaRef.current = EMPTY_QA;
+          lastSavedSnapshot.current = JSON.stringify(sanitizeQa(EMPTY_QA));
+        }
       } finally {
-        if (!controller.signal.aborted) {
+        if (!cancelled) {
           setIsLoading(false);
         }
+      }
+
+      if (!cancelled && !resumeIdRef.current) {
+        await ensureResumeId();
       }
     })();
 
     return () => {
+      cancelled = true;
       controller.abort();
     };
-  }, [resumeId]);
+  }, [ensureResumeId]);
 
   const saveQa = useCallback(
     async (values: QaState, options: SaveOptions = {}) => {
-      if (!resumeId) return false;
       const sanitized = sanitizeQa(values);
       const snapshot = JSON.stringify(sanitized);
       if (options.skipIfUnchanged && snapshot === lastSavedSnapshot.current) {
         return true;
       }
+
+      const ensuredId = await ensureResumeId();
+      if (!ensuredId) {
+        setSaveStatus('error');
+        setSaveError('IDの確保に失敗しました。時間をおいて再試行してください。');
+        return false;
+      }
+
       setSaveStatus('saving');
       setSaveError(null);
       try {
         const res = await fetch('/api/data/resume', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ id: resumeId, qa: sanitized }),
+          body: JSON.stringify({ id: ensuredId, qa: sanitized }),
           cache: 'no-store',
         });
         if (!res.ok) {
@@ -298,6 +273,8 @@ export default function PRWizard() {
         }
         lastSavedSnapshot.current = snapshot;
         setSaveStatus('saved');
+        setResumeId(ensuredId);
+        resumeIdRef.current = ensuredId;
         return true;
       } catch (error) {
         console.error('Failed to save QA', error);
@@ -306,29 +283,7 @@ export default function PRWizard() {
         return false;
       }
     },
-    [resumeId]
-  );
-
-  const handleResumeIdChange = useCallback(
-    (event: ChangeEvent<HTMLInputElement>) => {
-      const raw = event.target.value;
-      const sanitized = raw.replace(/\s+/g, '');
-      setResumeIdInput(sanitized);
-      resumeIdCacheRef.current = sanitized;
-      if (typeof window !== 'undefined') {
-        try {
-          if (sanitized) {
-            window.localStorage.setItem('resumeId', sanitized);
-          } else {
-            window.localStorage.removeItem('resumeId');
-          }
-        } catch {
-          // noop
-        }
-        window.dispatchEvent(new CustomEvent('resumeId-change', { detail: sanitized }));
-      }
-    },
-    []
+    [ensureResumeId],
   );
 
   const handleTextareaChange = useCallback(
@@ -336,7 +291,7 @@ export default function PRWizard() {
       const { value } = event.target;
       setQa((prev) => ({ ...prev, [key]: value }));
     },
-    []
+    [],
   );
 
   const handleTextareaBlur = useCallback(
@@ -346,12 +301,16 @@ export default function PRWizard() {
       setErrors((prev) => ({ ...prev, [key]: message }));
       void saveQa(qaRef.current, { skipIfUnchanged: true });
     },
-    [saveQa]
+    [saveQa],
   );
 
   const handleGenerate = useCallback(async () => {
-    if (!resumeId) {
-      setToast({ message: '履歴書IDを入力するとAI生成が利用できます。', variant: 'error' });
+    const ensuredId = await ensureResumeId();
+    if (!ensuredId) {
+      setToast({
+        message: '下書きIDの確保に失敗しました。時間をおいて再試行してください。',
+        variant: 'error',
+      });
       return;
     }
     const sanitized = sanitizeQa(qaRef.current);
@@ -380,7 +339,7 @@ export default function PRWizard() {
       const res = await fetch('/api/ai/selfpr', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ resumeId, qa: parsed.data }),
+        body: JSON.stringify({ resumeId: ensuredId, qa: parsed.data }),
         cache: 'no-store',
       });
       const data = await res.json();
@@ -394,56 +353,49 @@ export default function PRWizard() {
       setToast({ message: '生成しました。/cv/3で確認できます。', variant: 'success' });
     } catch (error) {
       console.error('Failed to generate self PR', error);
-      const message = error instanceof Error ? error.message : '生成に失敗しました。時間をおいて再試行してください。';
+      const message =
+        error instanceof Error ? error.message : '生成に失敗しました。時間をおいて再試行してください。';
       setToast({ message, variant: 'error' });
     } finally {
       setIsGenerating(false);
     }
-  }, [resumeId, saveQa]);
+  }, [ensureResumeId, saveQa]);
 
-  const handleNext = useCallback(() => {
-    if (resumeId) {
-      void saveQa(qaRef.current, { skipIfUnchanged: true });
-      const search = new URLSearchParams({ id: resumeId });
-      router.push(`/cv/3?${search.toString()}`);
-    } else {
+  const handleNext = useCallback(async () => {
+    const sanitized = sanitizeQa(qaRef.current);
+    const parsed = CvQaSchema.safeParse(sanitized);
+    if (!parsed.success) {
+      const issues = parsed.error.issues;
+      const nextErrors: Record<QuestionKey, string | undefined> = { ...EMPTY_ERRORS };
+      for (const issue of issues) {
+        const pathKey = issue.path[0];
+        if (typeof pathKey === 'string' && pathKey in nextErrors) {
+          nextErrors[pathKey as QuestionKey] = issue.message.includes('600')
+            ? MAX_MESSAGE
+            : MIN_MESSAGE;
+        }
+      }
+      setErrors(nextErrors);
+      setTouched({ q1: true, q2: true, q3: true, q4: true });
+      return;
+    }
+
+    const saved = await saveQa(parsed.data, { skipIfUnchanged: false });
+    if (saved) {
       router.push('/cv/3');
     }
-  }, [resumeId, router, saveQa]);
+  }, [router, saveQa]);
 
-  const isGenerateDisabled = !resumeId || isGenerating;
+  const isGenerateDisabled = isGenerating || isLoading;
 
   return (
     <section>
       <h2 className="cv-kicker">自己PR – Q&amp;A</h2>
-      {!resumeId && (
-        <p role="alert" style={{ color: '#b20000', marginBottom: 12 }}>
-          履歴書IDを入力すると回答が自動保存されます。
-        </p>
-      )}
+      <p style={{ color: '#555', marginBottom: 12, fontSize: 12 }}>
+        回答はフォーカスを外したタイミングとステップ移動時に自動保存されます。
+      </p>
       <div className="cv-card" style={{ marginBottom: 16 }}>
-        <div className="cv-field">
-          <label className="cv-label" htmlFor="resume-id">
-            履歴書ID
-          </label>
-          <input
-            id="resume-id"
-            className="cv-input"
-            value={resumeIdInput}
-            onChange={handleResumeIdChange}
-            placeholder="recXXXXXXXXXXXXXX"
-            autoComplete="off"
-            spellCheck={false}
-          />
-        </div>
-        <p style={{ fontSize: 12, color: '#555', marginTop: 8 }}>
-          自動保存は設問からフォーカスを外したタイミングで行われます。
-        </p>
-      </div>
-      <div className="cv-card">
-        {isLoading ? (
-          <p style={{ marginBottom: 16 }}>読み込み中です…</p>
-        ) : null}
+        {isLoading ? <p style={{ marginBottom: 16 }}>読み込み中です…</p> : null}
         {QUESTIONS.map(({ key, label, description, placeholder }) => {
           const errorMessage = errors[key];
           const showError = Boolean(errorMessage && touched[key]);
