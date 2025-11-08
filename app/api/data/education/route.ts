@@ -5,13 +5,17 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   createAirtableRecords,
   deleteAirtableRecords,
+  hasAirtableConfig,
   listAirtableRecords,
   type AirtableRecord,
 } from "../../../../lib/db/airtable";
 import { EducationListSchema } from "../../../../lib/validation/schemas";
+import { getMemoryStore, type MemoryEducationRecord } from "../../../../lib/db/memory";
 
 const TABLE_NAME = process.env.AIRTABLE_TABLE_EDUCATION ?? "Education";
 const WRITE_BATCH_SIZE = 10;
+const hasAirtable = hasAirtableConfig();
+const memoryStore = getMemoryStore();
 
 type EducationFields = {
   resumeId?: string;
@@ -36,6 +40,31 @@ type EducationRecord = {
   end: string;
   present: boolean;
 };
+
+function getMemoryEducationRecords(resumeId: string): MemoryEducationRecord[] {
+  const records = memoryStore.education.get(resumeId);
+  return records ? [...records] : [];
+}
+
+function setMemoryEducationRecords(resumeId: string, records: MemoryEducationRecord[]) {
+  if (records.length) {
+    memoryStore.education.set(resumeId, records);
+  } else {
+    memoryStore.education.delete(resumeId);
+  }
+}
+
+function removeMemoryEducationRecord(id: string) {
+  for (const [resumeId, records] of memoryStore.education.entries()) {
+    const index = records.findIndex((record) => record.id === id);
+    if (index !== -1) {
+      const next = [...records.slice(0, index), ...records.slice(index + 1)];
+      setMemoryEducationRecords(resumeId, next);
+      return true;
+    }
+  }
+  return false;
+}
 
 function sanitizeId(id: string) {
   return id.replace(/'/g, "\\'");
@@ -86,6 +115,20 @@ export async function GET(req: NextRequest) {
       return badRequest("resumeId is required");
     }
 
+    if (!hasAirtable) {
+      const items = getMemoryEducationRecords(resumeId);
+      return NextResponse.json({
+        ok: true,
+        items: items.map(({ schoolName, faculty, start, end, present }) => ({
+          schoolName,
+          faculty,
+          start,
+          end,
+          present,
+        })),
+      });
+    }
+
     const records = await listAirtableRecords<EducationFields>(TABLE_NAME, {
       filterByFormula: toFilterFormula(resumeId),
       fields: [
@@ -134,6 +177,21 @@ export async function POST(req: NextRequest) {
     const parsed = EducationListSchema.safeParse(items);
     if (!parsed.success) {
       return NextResponse.json({ ok: false, issues: parsed.error.issues }, { status: 400 });
+    }
+
+    if (!hasAirtable) {
+      const now = Date.now();
+      const records: MemoryEducationRecord[] = parsed.data.map((item, index) => ({
+        id: `${resumeId}-${index}-${now}`,
+        resumeId,
+        schoolName: item.schoolName,
+        faculty: item.faculty ?? "",
+        start: item.start,
+        end: item.present ? "" : item.end ?? "",
+        present: Boolean(item.present),
+      }));
+      setMemoryEducationRecords(resumeId, records);
+      return NextResponse.json({ ok: true, count: records.length });
     }
 
     const existing = await listAirtableRecords<EducationFields>(TABLE_NAME, {
@@ -199,6 +257,11 @@ export async function DELETE(req: NextRequest) {
 
     if (!id) {
       return badRequest("id is required");
+    }
+
+    if (!hasAirtable) {
+      removeMemoryEducationRecord(id);
+      return NextResponse.json({ ok: true });
     }
 
     await deleteAirtableRecords(TABLE_NAME, [id]);

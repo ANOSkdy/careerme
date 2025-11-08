@@ -9,6 +9,7 @@ import { z } from "zod";
 import {
   combineFilterFormulas,
   createAirtableRecords,
+  hasAirtableConfig,
   listAirtableRecords,
   updateAirtableRecords,
 } from "../../../../lib/db/airtable";
@@ -21,8 +22,81 @@ import {
   type ResumeStatus,
 } from "../../../../lib/validation/schemas";
 import { generateAnonKey, readAnonKey, setAnonCookie } from "../../../../lib/utils/anon";
+import { getMemoryStore, type MemoryResumeRecord } from "../../../../lib/db/memory";
 
 const TABLE_NAME = process.env.AIRTABLE_TABLE_RESUME ?? "Resumes";
+const hasAirtable = hasAirtableConfig();
+const memoryStore = getMemoryStore();
+
+function findMemoryResume(id: string | null, anonKey: string | null): MemoryResumeRecord | null {
+  if (id && memoryStore.resumes.has(id)) {
+    return memoryStore.resumes.get(id) ?? null;
+  }
+  if (anonKey) {
+    for (const record of memoryStore.resumes.values()) {
+      if (record.anonKey === anonKey) {
+        return record;
+      }
+    }
+  }
+  return null;
+}
+
+function writeMemoryResume(record: MemoryResumeRecord) {
+  memoryStore.resumes.set(record.id, record);
+}
+
+function handleMemoryPost(
+  req: NextRequest,
+  payload: z.infer<typeof UpdatePayloadSchema>
+) {
+  const { id: bodyId, basicInfo, status, highestEducation, touch } = payload;
+  const anonCookie = readAnonKey(req);
+  const existing = findMemoryResume(bodyId ?? null, anonCookie);
+
+  let resumeId = existing?.id ?? bodyId ?? randomUUID();
+  let anonKey = existing?.anonKey ?? anonCookie ?? generateAnonKey();
+
+  const hasUpdates =
+    Boolean(basicInfo) ||
+    Boolean(status) ||
+    typeof highestEducation !== "undefined";
+
+  if (!hasUpdates && !touch) {
+    const response = NextResponse.json({ id: resumeId });
+    setAnonCookie(response, anonKey);
+    return response;
+  }
+
+  const now = new Date().toISOString();
+  const baseRecord: MemoryResumeRecord = existing ?? {
+    id: resumeId,
+    anonKey,
+    createdAt: now,
+    updatedAt: now,
+  };
+
+  const updated: MemoryResumeRecord = {
+    ...baseRecord,
+    updatedAt: now,
+  };
+
+  if (basicInfo) {
+    updated.basicInfo = basicInfo;
+  }
+  if (status) {
+    updated.status = status;
+  }
+  if (typeof highestEducation !== "undefined") {
+    updated.highestEducation = highestEducation;
+  }
+
+  writeMemoryResume(updated);
+
+  const response = NextResponse.json({ id: updated.id });
+  setAnonCookie(response, updated.anonKey);
+  return response;
+}
 
 const UpdatePayloadSchema = z
   .object({
@@ -106,6 +180,22 @@ export async function GET(req: NextRequest) {
     const idParam = searchParams.get("id");
     const anonCookie = readAnonKey(req);
 
+    if (!hasAirtable) {
+      const record = findMemoryResume(idParam, anonCookie);
+      const resumeId = record?.id ?? idParam ?? null;
+      const response = NextResponse.json({
+        id: resumeId,
+        basicInfo: record?.basicInfo ?? null,
+        status: record?.status ?? null,
+        highestEducation: record?.highestEducation ?? null,
+      });
+
+      const anonKey = record?.anonKey ?? anonCookie ?? generateAnonKey();
+      setAnonCookie(response, anonKey);
+
+      return response;
+    }
+
     const record = await findResumeRecord(idParam, anonCookie);
     const resumeId = record?.fields.resumeId ?? record?.fields.draftId ?? idParam ?? null;
     const basicInfo = record?.fields.step1
@@ -143,6 +233,10 @@ export async function POST(req: NextRequest) {
     const parsed = UpdatePayloadSchema.safeParse(body);
     if (!parsed.success) {
       return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
+    }
+
+    if (!hasAirtable) {
+      return handleMemoryPost(req, parsed.data);
     }
 
     const { id: bodyId, basicInfo, status, highestEducation, touch } = parsed.data;

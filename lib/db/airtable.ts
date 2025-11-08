@@ -69,6 +69,10 @@ export function getPrRef(): string {
   );
 }
 
+export function hasAirtableConfig(): boolean {
+  return Boolean(process.env.AIRTABLE_BASE_ID && process.env.AIRTABLE_API_KEY);
+}
+
 export function combineFilterFormulas(
   ...formulas: Array<string | undefined | null>
 ): string | undefined {
