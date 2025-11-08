@@ -15,16 +15,11 @@ import AutoSaveBadge from "../_components/AutoSaveBadge";
 import StepNav from "../_components/StepNav";
 import type { SaveState } from "../_components/hooks/useAutoSave";
 import MonthYearSelect from "../../../components/form/MonthYearSelect";
-import TagSelector, { type TagOption } from "../../../components/ui/TagSelector";
 import {
   WorkHistoryListSchema,
   type WorkHistoryItem,
   type WorkHistoryListItem,
 } from "../../../lib/validation/schemas";
-
-const MAX_ROLES = 10;
-const MAX_INDUSTRIES = 10;
-const MAX_QUALIFICATIONS = 10;
 
 const WORK_API_BASE = "/api/data/work";
 
@@ -69,12 +64,6 @@ type ValidationSnapshot = {
   listError: string | null;
 };
 
-type LookupOptions = {
-  roles: TagOption[];
-  industries: TagOption[];
-  qualifications: TagOption[];
-};
-
 type WorkApiResponse = {
   ok?: boolean;
   items?: Array<{
@@ -93,10 +82,6 @@ type WorkApiResponse = {
 
 type ResumeResponse = {
   id?: string | null;
-};
-
-type LookupResponse = {
-  options?: Record<string, TagOption[]>;
 };
 
 function createEmptyRow(): WorkFormRow {
@@ -213,11 +198,6 @@ export default function ResumeStep4Page() {
   const [rows, setRows] = useState<WorkFormRow[]>([createEmptyRow()]);
   const [resumeId, setResumeId] = useState<string | null>(null);
   const resumeIdRef = useRef<string | null>(null);
-  const [lookupOptions, setLookupOptions] = useState<LookupOptions>({
-    roles: [],
-    industries: [],
-    qualifications: [],
-  });
   const [loadError, setLoadError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [saveState, setSaveState] = useState<SaveState>("idle");
@@ -314,20 +294,6 @@ export default function ResumeStep4Page() {
       setIsLoading(true);
       setLoadError(null);
       try {
-        const lookupRes = await fetch("/api/data/lookups", { cache: "force-cache" });
-        if (lookupRes.ok) {
-          const lookupJson = (await lookupRes.json()) as LookupResponse;
-          const options = lookupJson?.options;
-          if (!cancelled && options) {
-            setLookupOptions((prev) => ({
-              ...prev,
-              roles: options.roles ?? prev.roles,
-              industries: options.industries ?? prev.industries,
-              qualifications: options.qualifications ?? prev.qualifications,
-            }));
-          }
-        }
-
         const resumeRes = await fetch("/api/data/resume", { cache: "no-store" });
         if (!resumeRes.ok) {
           throw new Error(`failed to load resume: ${resumeRes.status}`);
@@ -606,30 +572,6 @@ export default function ResumeStep4Page() {
     [handleInputChange]
   );
 
-  const handleRolesChange = useCallback(
-    (values: string[], index: number) => {
-      handleInputChange(index, "roles", values.slice(0, MAX_ROLES));
-      markTouched(rows[index]?.key ?? "", "roles");
-    },
-    [handleInputChange, markTouched, rows]
-  );
-
-  const handleIndustriesChange = useCallback(
-    (values: string[], index: number) => {
-      handleInputChange(index, "industries", values.slice(0, MAX_INDUSTRIES));
-      markTouched(rows[index]?.key ?? "", "industries");
-    },
-    [handleInputChange, markTouched, rows]
-  );
-
-  const handleQualificationsChange = useCallback(
-    (values: string[], index: number) => {
-      handleInputChange(index, "qualifications", values.slice(0, MAX_QUALIFICATIONS));
-      markTouched(rows[index]?.key ?? "", "qualifications");
-    },
-    [handleInputChange, markTouched, rows]
-  );
-
   return (
     <div className="resume-step">
       <h1 className="resume-step__title">職歴</h1>
@@ -727,51 +669,6 @@ export default function ResumeStep4Page() {
                       </p>
                     ) : null}
                   </div>
-                </div>
-                <div className="form-field">
-                  <TagSelector
-                    options={lookupOptions.roles}
-                    value={row.roles}
-                    onChange={(values) => handleRolesChange(values, index)}
-                    maxSelections={MAX_ROLES}
-                    label="担当職種"
-                    showSelectionHint={false}
-                  />
-                  {errors.roles && shouldShowError(row.key, "roles") ? (
-                    <p className="form-error" role="alert">
-                      {errors.roles}
-                    </p>
-                  ) : null}
-                </div>
-                <div className="form-field">
-                  <TagSelector
-                    options={lookupOptions.industries}
-                    value={row.industries}
-                    onChange={(values) => handleIndustriesChange(values, index)}
-                    maxSelections={MAX_INDUSTRIES}
-                    label="担当業界"
-                    showSelectionHint={false}
-                  />
-                  {errors.industries && shouldShowError(row.key, "industries") ? (
-                    <p className="form-error" role="alert">
-                      {errors.industries}
-                    </p>
-                  ) : null}
-                </div>
-                <div className="form-field">
-                  <TagSelector
-                    options={lookupOptions.qualifications}
-                    value={row.qualifications}
-                    onChange={(values) => handleQualificationsChange(values, index)}
-                    maxSelections={MAX_QUALIFICATIONS}
-                    label="保有資格"
-                    showSelectionHint={false}
-                  />
-                  {errors.qualifications && shouldShowError(row.key, "qualifications") ? (
-                    <p className="form-error" role="alert">
-                      {errors.qualifications}
-                    </p>
-                  ) : null}
                 </div>
                 <div className="form-field">
                   <label htmlFor={`description-${row.key}`} className="form-label">
