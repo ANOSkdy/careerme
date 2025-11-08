@@ -11,9 +11,6 @@ import {
   type CvQa,
 } from '../../../lib/validation/schemas';
 
-export const dynamic = 'force-dynamic';
-export const revalidate = 0;
-
 type ResumeResponse = {
   id?: string | null;
   qa?: CvQa | null;
