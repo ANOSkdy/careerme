@@ -14,9 +14,20 @@ const qaFieldSchema = z
   .max(600, qaMessageMax);
 
 const genderRequiredMessage = "性別を選択してください";
-const genderSelectionSchema = z.enum(["male", "female", "none"], {
-  errorMap: () => ({ message: genderRequiredMessage }),
-});
+const genderSelectionSchema = z.enum(["male", "female", "none"]);
+
+function assertGenderSelected(
+  value: z.infer<typeof genderSelectionSchema> | undefined,
+  ctx: z.RefinementCtx
+) {
+  if (typeof value !== "undefined" && value === "none") {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: genderRequiredMessage,
+      path: ["gender"],
+    });
+  }
+}
 
 export const CvQaSchema = z.object({
   q1: qaFieldSchema,
@@ -116,13 +127,7 @@ export const BasicInfoSchema = z
     gender: genderSelectionSchema.default("none"),
   })
   .superRefine((value, ctx) => {
-    if (value.gender === "none") {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: genderRequiredMessage,
-        path: ["gender"],
-      });
-    }
+    assertGenderSelected(value.gender, ctx);
   });
 
 export type BasicInfo = z.infer<typeof BasicInfoSchema>;
@@ -136,13 +141,7 @@ export const BasicInfoPartialSchema = z
     gender: genderSelectionSchema.optional(),
   })
   .superRefine((value, ctx) => {
-    if (typeof value.gender !== "undefined" && value.gender === "none") {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: genderRequiredMessage,
-        path: ["gender"],
-      });
-    }
+    assertGenderSelected(value.gender, ctx);
   });
 
 export type BasicInfoPartial = z.infer<typeof BasicInfoPartialSchema>;
