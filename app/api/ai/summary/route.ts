@@ -170,10 +170,11 @@ async function updateSummaryField(
 export async function POST(req: NextRequest) {
   const correlationId = ensureCorrelationId(req.headers.get('x-correlation-id'));
   const anonCookie = readAnonKey(req);
+  const forwardedFor = req.headers.get('x-forwarded-for');
   const ipAddress =
-    req.ip ||
-    req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
+    (forwardedFor && forwardedFor.split(',')[0]?.trim()) ||
     req.headers.get('x-real-ip') ||
+    req.headers.get('cf-connecting-ip') ||
     'unknown';
 
   let anonKey = anonCookie;
