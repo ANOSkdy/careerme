@@ -67,11 +67,15 @@ function extractCandidateText(candidate?: GeminiCandidate): string | undefined {
 function extractUsageTokens(response: GeminiResponse): number | undefined {
   const usage = response.usageMetadata;
   if (!usage) return undefined;
-  return (
+
+  const totalTokens =
     usage.totalTokenCount ??
     usage.totalTokens ??
-    (usage.promptTokenCount ?? 0) + (usage.candidatesTokenCount ?? 0) || undefined
-  );
+    (usage.promptTokenCount ?? 0) + (usage.candidatesTokenCount ?? 0);
+
+  return typeof totalTokens === 'number' && Number.isFinite(totalTokens)
+    ? totalTokens
+    : undefined;
 }
 
 export async function generateGeminiText({
