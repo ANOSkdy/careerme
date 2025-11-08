@@ -279,10 +279,13 @@ export const ExperienceListSchema = z
   .array(ExperienceItemSchema)
   .min(1, "職歴を1件以上追加してください");
 
+export const ResumeFreeTextSchema = z.string().max(2000);
+
 export const ResumeSchema = z.object({
   certifications: z.array(z.string()).optional(),
   qa: CvQaSchema.optional(),
-  selfPr: z.string().max(2000).optional(),
+  selfPr: ResumeFreeTextSchema.optional(),
+  summary: ResumeFreeTextSchema.optional(),
 });
 
 export type Resume = z.infer<typeof ResumeSchema>;

@@ -1,5 +1,6 @@
 import type {
   BasicInfo,
+  CvQa,
   HighestEducation,
   ResumeStatus,
 } from "../validation/schemas";
@@ -10,6 +11,9 @@ export type MemoryResumeRecord = {
   basicInfo?: BasicInfo;
   status?: ResumeStatus;
   highestEducation?: HighestEducation;
+  qa?: CvQa;
+  selfPr?: string;
+  summary?: string;
   createdAt: string;
   updatedAt: string;
 };

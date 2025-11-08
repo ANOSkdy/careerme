@@ -1,7 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState, useTransition } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from 'react';
 import Link from 'next/link';
 
 type SelfPrPayload = {
@@ -14,16 +13,22 @@ type SelfPrPayload = {
   extraNotes?: string;
 };
 
-type ResumeInfo = {
-  selfpr_draft?: string;
-  summary_draft?: string;
-  source_env?: string;
-  pr_ref?: string;
+type ResumeSnapshot = {
+  selfPr?: string;
+  summary?: string;
+};
+
+type ResumeResponse = {
+  id?: string | null;
+  selfPr?: string | null;
+  summary?: string | null;
 };
 
 export default function Step2Client() {
-  const params = useSearchParams();
-  const [resumeId, setResumeId] = useState('');
+  const [resumeId, setResumeId] = useState<string | null>(null);
+  const resumeIdRef = useRef<string | null>(null);
+  const ensureIdPromiseRef = useRef<Promise<string | null> | null>(null);
+
   const [role, setRole] = useState('');
   const [years, setYears] = useState<number | ''>('');
   const [skills, setSkills] = useState('');
@@ -34,77 +39,95 @@ export default function Step2Client() {
   const [saved, setSaved] = useState<boolean | null>(null);
   const [isPending, startTransition] = useTransition();
   const [, syncResumeTransition] = useTransition();
-  const [serverState, setServerState] = useState<ResumeInfo>({});
+  const [serverState, setServerState] = useState<ResumeSnapshot>({});
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isHydrating, setIsHydrating] = useState(true);
 
   useEffect(() => {
-    const idFromUrl = params.get('id') || '';
-    const ls = typeof window !== 'undefined' ? window.localStorage.getItem('resumeId') || '' : '';
-    const nextId = idFromUrl || ls;
-    syncResumeTransition(() => {
-      setResumeId(nextId);
-    });
-    if (typeof window !== 'undefined') {
-      if (nextId) {
-        window.localStorage.setItem('resumeId', nextId);
-      } else {
-        window.localStorage.removeItem('resumeId');
-      }
-      window.dispatchEvent(new CustomEvent('resumeId-change', { detail: nextId }));
-    }
-  }, [params, syncResumeTransition]);
-
-  useEffect(() => {
-    if (!resumeId) {
-      setServerState({});
-      setResult('');
-      setSaved(null);
-    }
+    resumeIdRef.current = resumeId;
   }, [resumeId]);
 
-  const loadFromServer = useCallback(
-    async (idValue?: string) => {
-      const targetId = idValue ?? resumeId;
-      if (!targetId) return;
-      setIsRefreshing(true);
+  const ensureResumeId = useCallback(async () => {
+    if (resumeIdRef.current) return resumeIdRef.current;
+    if (ensureIdPromiseRef.current) return ensureIdPromiseRef.current;
+
+    ensureIdPromiseRef.current = (async () => {
       try {
-        const res = await fetch(`/api/data/resumes/${encodeURIComponent(targetId)}`);
-        const data = await res.json();
-        if (data?.ok) {
-          setServerState(data.fields || {});
-        } else {
-          setServerState({});
+        const res = await fetch('/api/data/resume', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ touch: true }),
+          cache: 'no-store',
+        });
+        if (!res.ok) {
+          throw new Error(`failed to ensure resume id: ${res.status}`);
         }
+        const data = (await res.json()) as ResumeResponse;
+        const id = typeof data.id === 'string' && data.id ? data.id : null;
+        if (id) {
+          resumeIdRef.current = id;
+          setResumeId(id);
+        }
+        return id;
       } catch (error) {
-        console.error('Failed to load server data', error);
+        console.error('Failed to ensure resume id', error);
+        return null;
       } finally {
-        setIsRefreshing(false);
+        ensureIdPromiseRef.current = null;
       }
-    },
-    [resumeId],
-  );
+    })();
+
+    return ensureIdPromiseRef.current;
+  }, []);
+
+  const loadFromServer = useCallback(async () => {
+    setIsRefreshing(true);
+    try {
+      const res = await fetch('/api/data/resume', { cache: 'no-store' });
+      if (!res.ok) {
+        throw new Error(`failed to load resume: ${res.status}`);
+      }
+      const data = (await res.json()) as ResumeResponse;
+      syncResumeTransition(() => {
+        const id = typeof data.id === 'string' && data.id ? data.id : null;
+        resumeIdRef.current = id;
+        setResumeId(id);
+        const nextState: ResumeSnapshot = {
+          selfPr: data.selfPr ?? undefined,
+          summary: data.summary ?? undefined,
+        };
+        setServerState(nextState);
+      });
+    } catch (error) {
+      console.error('Failed to load server data', error);
+    } finally {
+      setIsRefreshing(false);
+      setIsHydrating(false);
+    }
+  }, [syncResumeTransition]);
 
   useEffect(() => {
-    loadFromServer();
+    void loadFromServer();
   }, [loadFromServer]);
 
-  const canGenerate = useMemo(() => !!resumeId, [resumeId]);
+  const canGenerate = useMemo(() => !isHydrating && !isPending, [isHydrating, isPending]);
 
   const doGenerate = () => {
-    if (!resumeId) {
-      alert('resumeId is required. 上のフィールドに入力してください。');
-      return;
-    }
-    const payload: SelfPrPayload = {
-      resumeId,
-      role: role || undefined,
-      years: years === '' ? undefined : Number(years),
-      skills: skills.split(',').map((s) => s.trim()).filter(Boolean),
-      achievements: achievements.split('\n').map((s) => s.trim()).filter(Boolean),
-      tone,
-      extraNotes: extra || undefined,
-    };
     startTransition(async () => {
+      const ensuredId = await ensureResumeId();
+      if (!ensuredId) {
+        alert('下書きIDの確保に失敗しました。時間をおいて再試行してください。');
+        return;
+      }
+      const payload: SelfPrPayload = {
+        resumeId: ensuredId,
+        role: role || undefined,
+        years: years === '' ? undefined : Number(years),
+        skills: skills.split(',').map((s) => s.trim()).filter(Boolean),
+        achievements: achievements.split('\n').map((s) => s.trim()).filter(Boolean),
+        tone,
+        extraNotes: extra || undefined,
+      };
       setSaved(null);
       setResult('');
       try {
@@ -117,17 +140,17 @@ export default function Step2Client() {
         if (data?.ok) {
           setResult(data.text || '');
           setSaved(!!data.saved);
-          await loadFromServer(resumeId);
+          await loadFromServer();
         } else {
           setResult('');
           setSaved(false);
-          alert(data?.error?.message || 'Generation failed');
+          alert(data?.error?.message || '生成に失敗しました。');
         }
       } catch (error) {
         console.error(error);
         setResult('');
         setSaved(false);
-        alert('Network error');
+        alert('ネットワークエラーが発生しました。');
       }
     });
   };
@@ -135,33 +158,11 @@ export default function Step2Client() {
   return (
     <section>
       <h2 className="cv-kicker">自己PR</h2>
-      {!resumeId && (
-        <p style={{ color: '#b00', marginBottom: 12 }}>
-          resumeId が未設定です。上のフィールドに入力してください。
-        </p>
-      )}
       <div className="cv-card" style={{ marginBottom: 16 }}>
         <h3>自己PRの生成</h3>
-        <div className="cv-field">
-          <label className="cv-label">resumeId</label>
-          <input
-            className="cv-input"
-            value={resumeId}
-            onChange={(e) => {
-              const value = e.target.value;
-              setResumeId(value);
-              if (typeof window !== 'undefined') {
-                if (value) {
-                  window.localStorage.setItem('resumeId', value);
-                } else {
-                  window.localStorage.removeItem('resumeId');
-                }
-                window.dispatchEvent(new CustomEvent('resumeId-change', { detail: value }));
-              }
-            }}
-            placeholder="recXXXXXXXXXXXXXX"
-          />
-        </div>
+        <p style={{ color: 'var(--cv-muted)', marginTop: 0, marginBottom: 16, lineHeight: 1.6 }}>
+          入力内容は自動保存され、AI生成時に最新の下書きIDを利用します。
+        </p>
         <div className="cv-field">
           <label className="cv-label">Role</label>
           <input className="cv-input" value={role} onChange={(e) => setRole(e.target.value)} />
@@ -177,7 +178,12 @@ export default function Step2Client() {
         </div>
         <div className="cv-field">
           <label className="cv-label">Skills (comma)</label>
-          <input className="cv-input" value={skills} onChange={(e) => setSkills(e.target.value)} placeholder="React, Next.js" />
+          <input
+            className="cv-input"
+            value={skills}
+            onChange={(e) => setSkills(e.target.value)}
+            placeholder="React, Next.js"
+          />
         </div>
         <div className="cv-field" style={{ alignItems: 'flex-start' }}>
           <label className="cv-label" style={{ paddingTop: 8 }}>Achievements</label>
@@ -198,23 +204,33 @@ export default function Step2Client() {
         </div>
         <div className="cv-field" style={{ alignItems: 'flex-start' }}>
           <label className="cv-label" style={{ paddingTop: 8 }}>Extra notes</label>
-          <textarea className="cv-textarea" value={extra} onChange={(e) => setExtra(e.target.value)} />
+          <textarea
+            className="cv-textarea"
+            value={extra}
+            onChange={(e) => setExtra(e.target.value)}
+            placeholder="プロジェクトの背景や補足事項など"
+          />
         </div>
-        <div className="cv-row" style={{ marginTop: 16 }}>
-          <button
-            className="cv-btn"
-            variant="ai"
-            onClick={doGenerate}
-            disabled={!canGenerate || isPending}
-          >
-            {isPending ? 'Generating…' : 'AIで自己PRを生成'}
+        <div className="cv-row" style={{ marginTop: 20, gap: 12 }}>
+          <button className="cv-btn primary" onClick={doGenerate} disabled={!canGenerate}>
+            {isPending ? '生成中…' : 'AIで自己PRを生成'}
           </button>
-          <Link href={resumeId ? { pathname: '/cv/3', query: { id: resumeId } } : '/cv/3'}>
+          <button className="cv-btn ghost" onClick={() => loadFromServer()} disabled={isRefreshing}>
+            {isRefreshing ? '更新中…' : '最新の保存内容を取得'}
+          </button>
+        </div>
+        <div className="cv-row" style={{ marginTop: 12 }}>
+          <Link href="/cv/3">
             <span className="cv-btn">次へ（要約）</span>
           </Link>
-          <button className="cv-btn ghost" onClick={() => loadFromServer()} disabled={!resumeId || isRefreshing}>
-            {isRefreshing ? '更新中…' : 'サーバから再読込'}
-          </button>
+        </div>
+        <div className="summary-status" role="status" aria-live="polite">
+          {saved === null && !isPending && <span style={{ color: 'var(--cv-muted)' }}>Airtable へ保存済みの自己PRをプレビューできます。</span>}
+          {isPending && <span>AI が出力しています…</span>}
+          {saved === true && !isPending && <span style={{ color: '#0a0' }}>Airtable に保存しました。</span>}
+          {saved === false && !isPending && (
+            <span style={{ color: '#b00' }}>保存に失敗しました（Airtable 側をご確認ください）。</span>
+          )}
         </div>
       </div>
       {result && (
@@ -223,20 +239,17 @@ export default function Step2Client() {
           <p style={{ whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>{result}</p>
           <div style={{ marginTop: 8, color: saved ? '#0a0' : 'var(--cv-muted)' }}>
             {saved === null
-              ? null
+              ? '生成結果はAirtableへの保存を確認しています…'
               : saved
-              ? 'Saved to Airtable (selfpr_draft)'
-              : 'Not saved (see API response).'}
+                ? 'Airtable に保存しました。'
+                : '保存に失敗しました（リトライしてください）。'}
           </div>
         </div>
       )}
       <div className="cv-card">
-        <h3>サーバ保存値（検証用）</h3>
-        <p style={{ color: 'var(--cv-muted)', marginTop: 0, marginBottom: 8 }}>
-          env: {serverState.source_env || '-'} / ref: {serverState.pr_ref || '-'}
-        </p>
-        <p style={{ whiteSpace: 'pre-wrap', lineHeight: 1.6, margin: 0 }}>
-          {serverState.selfpr_draft || '（保存なし）'}
+        <h3>保存済みの自己PR（最新のドラフト）</h3>
+        <p style={{ whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>
+          {serverState.selfPr || '（保存された自己PRはまだありません）'}
         </p>
       </div>
     </section>

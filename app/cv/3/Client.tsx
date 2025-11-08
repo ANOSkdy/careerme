@@ -1,94 +1,117 @@
 'use client';
 
-import { useCallback, useEffect, useState, useTransition } from 'react';
-import { useSearchParams } from 'next/navigation';
+import { useCallback, useEffect, useRef, useState, useTransition } from 'react';
 import Link from 'next/link';
 
+type ResumeResponse = {
+  id?: string | null;
+  summary?: string | null;
+};
+
 export default function Step3Client() {
-  const params = useSearchParams();
-  const [resumeId, setResumeId] = useState('');
+  const [resumeId, setResumeId] = useState<string | null>(null);
+  const resumeIdRef = useRef<string | null>(null);
+  const ensureIdPromiseRef = useRef<Promise<string | null> | null>(null);
+
   const [result, setResult] = useState('');
   const [saved, setSaved] = useState<boolean | null>(null);
   const [isPending, startTransition] = useTransition();
   const [, startUiTransition] = useTransition();
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   useEffect(() => {
-    const idFromUrl = params.get('id') || '';
-    const ls = typeof window !== 'undefined' ? window.localStorage.getItem('resumeId') || '' : '';
-    const nextId = idFromUrl || ls;
-    startUiTransition(() => {
-      setResumeId(nextId);
-      if (!nextId) {
-        setResult('');
-        setSaved(null);
-      }
-    });
-    if (typeof window !== 'undefined') {
-      if (nextId) {
-        window.localStorage.setItem('resumeId', nextId);
-      } else {
-        window.localStorage.removeItem('resumeId');
-      }
-      window.dispatchEvent(new CustomEvent('resumeId-change', { detail: nextId }));
-    }
-  }, [params, startUiTransition]);
+    resumeIdRef.current = resumeId;
+  }, [resumeId]);
 
-  const loadFromServer = useCallback(
-    async (idValue?: string) => {
-      const targetId = idValue ?? resumeId;
-      if (!targetId) return;
+  const ensureResumeId = useCallback(async () => {
+    if (resumeIdRef.current) return resumeIdRef.current;
+    if (ensureIdPromiseRef.current) return ensureIdPromiseRef.current;
+
+    ensureIdPromiseRef.current = (async () => {
       try {
-        const res = await fetch(`/api/data/resumes/${encodeURIComponent(targetId)}`);
-        const data = await res.json();
-        startUiTransition(() => {
-          if (data?.ok) {
-            setResult(data.fields?.summary_draft || '');
-          } else {
-            setResult('');
-          }
+        const res = await fetch('/api/data/resume', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ touch: true }),
+          cache: 'no-store',
         });
+        if (!res.ok) {
+          throw new Error(`failed to ensure resume id: ${res.status}`);
+        }
+        const data = (await res.json()) as ResumeResponse;
+        const id = typeof data.id === 'string' && data.id ? data.id : null;
+        if (id) {
+          resumeIdRef.current = id;
+          setResumeId(id);
+        }
+        return id;
       } catch (error) {
-        console.error('Failed to load server data', error);
+        console.error('Failed to ensure resume id', error);
+        return null;
+      } finally {
+        ensureIdPromiseRef.current = null;
       }
-    },
-    [resumeId, startUiTransition],
-  );
+    })();
+
+    return ensureIdPromiseRef.current;
+  }, []);
+
+  const loadFromServer = useCallback(async () => {
+    setIsRefreshing(true);
+    try {
+      const res = await fetch('/api/data/resume', { cache: 'no-store' });
+      if (!res.ok) {
+        throw new Error(`failed to load resume summary: ${res.status}`);
+      }
+      const data = (await res.json()) as ResumeResponse;
+      startUiTransition(() => {
+        const id = typeof data.id === 'string' && data.id ? data.id : null;
+        resumeIdRef.current = id;
+        setResumeId(id);
+        setResult(data.summary ?? '');
+        setSaved(data.summary ? true : null);
+      });
+    } catch (error) {
+      console.error('Failed to load summary', error);
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, [startUiTransition]);
 
   useEffect(() => {
-    loadFromServer();
+    void loadFromServer();
   }, [loadFromServer]);
 
-  const canGenerate = !!resumeId;
-
   const doGenerate = () => {
-    if (!resumeId) {
-      alert('resumeId is required. 上のフィールドに入力してください。');
-      return;
-    }
     startTransition(async () => {
+      const ensuredId = await ensureResumeId();
+      if (!ensuredId) {
+        alert('下書きIDの確保に失敗しました。時間をおいて再試行してください。');
+        return;
+      }
       setSaved(null);
       setResult('');
       try {
         const res = await fetch('/api/ai/summary', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ resumeId }),
+          body: JSON.stringify({ resumeId: ensuredId }),
         });
         const data = await res.json();
         if (data?.ok) {
           setResult(data.text || '');
           setSaved(!!data.saved);
-          await loadFromServer(resumeId);
+          await loadFromServer();
         } else {
           setResult('');
           setSaved(false);
-          alert(data?.error?.message || 'Generation failed');
+          alert(data?.error?.message || '生成に失敗しました。');
         }
       } catch (error) {
         console.error(error);
         setResult('');
         setSaved(false);
-        alert('Network error');
+        alert('ネットワークエラーが発生しました。');
       }
     });
   };
@@ -99,25 +122,14 @@ export default function Step3Client() {
   return (
     <section>
       <h2 className="cv-kicker">要約</h2>
-      {!resumeId && (
-        <p style={{ color: '#b00', marginBottom: 12 }}>
-          resumeId が未設定です。上のフィールドに入力してください。
-        </p>
-      )}
       <div className="summary-layout">
         <div className="summary-actions" data-print-hidden="true">
           <div className="cv-card" style={{ marginBottom: 16 }}>
             <h3>AIで職務要約を作成</h3>
             <p style={{ color: 'var(--cv-muted)', marginTop: 0, marginBottom: 16, lineHeight: 1.6 }}>
-              これまでに入力した内容をもとに AI が職務要約を生成します。出力結果は右の
-              プレビューに即時反映され、保存可能なテキストとして確認できます。
+              これまでに入力した内容をもとに AI が職務要約を生成します。生成後は自動的に下書きとして保存されます。
             </p>
-            <button
-              className="cv-btn summary-ai-button"
-              variant="ai"
-              onClick={doGenerate}
-              disabled={!canGenerate || isPending}
-            >
+            <button className="cv-btn summary-ai-button" onClick={doGenerate} disabled={isPending}>
               {isPending ? '生成中…' : 'AIで出力'}
             </button>
             <div className="summary-status" role="status" aria-live="polite">
@@ -132,21 +144,19 @@ export default function Step3Client() {
                 <span style={{ color: '#b00' }}>保存に失敗しました（Airtable 側をご確認ください）。</span>
               )}
             </div>
-            <div className="cv-row" style={{ marginTop: 20 }}>
-              <Link href={resumeId ? { pathname: '/cv/2', query: { id: resumeId } } : '/cv/2'}>
+            <div className="cv-row" style={{ marginTop: 20, gap: 12 }}>
+              <Link href="/cv/2">
                 <span className="cv-btn">戻る（自己PR）</span>
               </Link>
+              <button className="cv-btn ghost" onClick={() => loadFromServer()} disabled={isRefreshing}>
+                {isRefreshing ? '更新中…' : '最新の保存内容を取得'}
+              </button>
             </div>
           </div>
         </div>
         <div className="cv-card summary-preview">
           <div className="summary-preview__header">
             <h3>プレビュー</h3>
-            {resumeId && (
-              <span className="preview-chip" aria-label="現在の resumeId">
-                ID: {resumeId.length > 12 ? `${resumeId.slice(0, 6)}…${resumeId.slice(-4)}` : resumeId}
-              </span>
-            )}
           </div>
           <div className={`summary-preview__surface ${hasPreview ? 'is-filled' : ''}`}>
             {hasPreview ? (
@@ -195,69 +205,33 @@ export default function Step3Client() {
           justify-content: space-between;
         }
 
-        .preview-chip {
-          background: rgba(58, 117, 196, 0.08);
-          border-radius: 999px;
-          color: rgba(35, 64, 104, 0.88);
-          font-size: 0.8rem;
-          font-weight: 600;
-          letter-spacing: 0.02em;
-          padding: 0.35rem 0.75rem;
-        }
-
         .summary-preview__surface {
-          background: linear-gradient(180deg, rgba(58, 117, 196, 0.08), rgba(255, 255, 255, 0.92));
-          border: 1px dashed rgba(58, 117, 196, 0.25);
-          border-radius: 0.9rem;
-          min-height: 280px;
-          padding: 1.5rem;
+          border: 1px solid rgba(0, 0, 0, 0.08);
+          border-radius: 12px;
+          min-height: 200px;
+          padding: 16px;
+          background: #fff;
         }
 
         .summary-preview__surface.is-filled {
-          border-style: solid;
-          border-color: rgba(58, 117, 196, 0.35);
-          box-shadow: inset 0 0 0 1px rgba(58, 117, 196, 0.12);
+          background: linear-gradient(180deg, rgba(245, 249, 255, 0.8), rgba(255, 255, 255, 0.95));
         }
 
         .summary-preview__text {
           margin: 0;
           white-space: pre-wrap;
           line-height: 1.7;
-          font-size: 1rem;
         }
 
         .summary-preview__placeholder {
           margin: 0;
           color: var(--cv-muted);
-          line-height: 1.7;
+          line-height: 1.6;
         }
 
         @media (min-width: 960px) {
           .summary-layout {
-            grid-template-columns: minmax(0, 340px) minmax(0, 1fr);
-          }
-        }
-
-        @media (max-width: 959px) {
-          .summary-actions .cv-card {
-            margin-bottom: 1rem;
-          }
-        }
-
-        @media print {
-          .summary-layout {
-            display: block;
-          }
-
-          .summary-preview {
-            box-shadow: none;
-          }
-
-          .summary-preview__surface {
-            background: #ffffff;
-            border: none;
-            padding: 0;
-            min-height: auto;
+            grid-template-columns: minmax(0, 420px) minmax(0, 1fr);
           }
         }
       `}</style>

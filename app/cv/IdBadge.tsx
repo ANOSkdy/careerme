@@ -1,75 +1,61 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
-import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { useEffect, useState } from 'react';
+
+type ResumeResponse = {
+  id?: string | null;
+};
+
+function formatId(id: string | null): string {
+  if (!id) return '-';
+  return id.length > 12 ? `${id.slice(0, 6)}…${id.slice(-4)}` : id;
+}
 
 export default function IdBadge() {
-  const params = useSearchParams();
-  const router = useRouter();
-  const pathname = usePathname();
-  const [id, setId] = useState('');
+  const [draftId, setDraftId] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const urlId = params.get('id') || '';
-    let stored = '';
-    try {
-      stored = window.localStorage.getItem('resumeId') || '';
-    } catch (error) {
-      stored = '';
-    }
-    const nextId = urlId || stored;
-    setId(nextId);
-  }, [params]);
+    let cancelled = false;
+    const controller = new AbortController();
 
-  useEffect(() => {
-    const handleStorage = (event: StorageEvent) => {
-      if (event.key === 'resumeId') {
-        setId(event.newValue || '');
+    (async () => {
+      try {
+        const res = await fetch('/api/data/resume', {
+          cache: 'no-store',
+          signal: controller.signal,
+        });
+        if (!res.ok) {
+          throw new Error(`failed to load resume id: ${res.status}`);
+        }
+        const data = (await res.json()) as ResumeResponse;
+        if (!cancelled) {
+          const id = typeof data.id === 'string' && data.id ? data.id : null;
+          setDraftId(id);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          console.error('Failed to resolve draft id', error);
+          setDraftId(null);
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoading(false);
+        }
       }
-    };
-    const handleCustom = (event: Event) => {
-      const detail = (event as CustomEvent<string>).detail ?? '';
-      setId(detail);
-    };
-    window.addEventListener('storage', handleStorage);
-    window.addEventListener('resumeId-change', handleCustom as EventListener);
+    })();
+
     return () => {
-      window.removeEventListener('storage', handleStorage);
-      window.removeEventListener('resumeId-change', handleCustom as EventListener);
+      cancelled = true;
+      controller.abort();
     };
   }, []);
 
-  const short = useMemo(() => {
-    if (!id) return '';
-    return id.length > 12 ? `${id.slice(0, 6)}…${id.slice(-4)}` : id;
-  }, [id]);
-
-  const clear = () => {
-    try {
-      window.localStorage.removeItem('resumeId');
-    } catch (error) {
-      // noop
-    }
-    window.dispatchEvent(new CustomEvent('resumeId-change', { detail: '' }));
-    const next = new URLSearchParams(params.toString());
-    next.delete('id');
-    router.replace(`${pathname}${next.size ? `?${next.toString()}` : ''}`, { scroll: false });
-    setId('');
-  };
+  const label = isLoading ? '読み込み中…' : `ドラフトID: ${formatId(draftId)}`;
 
   return (
     <div className="cv-meta" role="status" aria-live="polite">
-      <span className="cv-chip">ID: {short || '-'}</span>
-      <button
-        className="cv-btn ghost"
-        onClick={clear}
-        disabled={!id}
-        style={{ fontSize: 12, padding: '6px 10px', lineHeight: 1 }}
-        type="button"
-        title="Clear resumeId"
-      >
-        Clear
-      </button>
+      <span className="cv-chip">{label}</span>
     </div>
   );
 }
