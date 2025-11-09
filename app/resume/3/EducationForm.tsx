@@ -113,10 +113,6 @@ export default function EducationForm() {
   const [rowErrors, setRowErrors] = useState<RowErrors>({});
   const [listError, setListError] = useState<string | null>(null);
   const [finalEducation, setFinalEducation] = useState<FinalEducation | "">("");
-  const [focusedFinalEducation, setFocusedFinalEducation] = useState<FinalEducation | null>(
-    null
-  );
-  const [finalTouched, setFinalTouched] = useState(false);
   const [resumeId, setResumeId] = useState<string | null>(null);
   const resumeIdRef = useRef<string | null>(null);
   const ensureIdPromiseRef = useRef<Promise<string | null> | null>(null);
@@ -127,7 +123,6 @@ export default function EducationForm() {
   const [isHydrating, setIsHydrating] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     resumeIdRef.current = resumeId;
@@ -413,7 +408,6 @@ export default function EducationForm() {
   );
 
   const handleFinalEducationChange = useCallback((event: ChangeEvent<HTMLInputElement>) => {
-    setFinalTouched(true);
     setFinalEducation(event.target.value as FinalEducation | "");
   }, []);
 
@@ -423,42 +417,34 @@ export default function EducationForm() {
     return null;
   }, [isHydrating, loadError]);
 
-  const nextDisabled =
-    isHydrating ||
-    isSubmitting ||
-    !listValidation.success ||
-    finalEducation === "";
-
   const handleSubmit = useCallback(
     async (event: FormEvent<HTMLFormElement>) => {
       event.preventDefault();
-      setFinalTouched(true);
       setSubmitError(null);
 
-      if (!listValidation.success || finalEducation === "") {
+      if (!listValidation.success) {
         return;
       }
 
-      setIsSubmitting(true);
       try {
         const savedEducation = await saveEducation(listValidation.data, { force: true });
         if (!savedEducation) {
           throw new Error("failed to save education rows");
         }
 
-        const savedHighest = await saveHighestEducation(finalEducation as FinalEducation, {
-          force: true,
-        });
-        if (!savedHighest) {
-          throw new Error("failed to save highest education");
+        if (finalEducation) {
+          const savedHighest = await saveHighestEducation(finalEducation as FinalEducation, {
+            force: true,
+          });
+          if (!savedHighest) {
+            throw new Error("failed to save highest education");
+          }
         }
 
         router.push("/resume/4");
       } catch (error) {
         console.error("Failed to submit education form", error);
         setSubmitError("保存に失敗しました。時間をおいて再度お試しください。");
-      } finally {
-        setIsSubmitting(false);
       }
     },
     [finalEducation, listValidation, router, saveEducation, saveHighestEducation]
@@ -671,79 +657,25 @@ export default function EducationForm() {
 
       <AutoSaveBadge state={educationSaveState} />
 
-      <div style={{ marginTop: "24px" }}>
-        <span
-          id="final-education-label"
-          style={{ display: "block", fontWeight: 600, marginBottom: "8px" }}
-        >
-          最終学歴 <span aria-hidden="true" style={{ color: "#ef4444" }}>*</span>
-        </span>
-        <div
-          role="radiogroup"
-          aria-labelledby="final-education-label"
-          aria-invalid={finalTouched && finalEducation === ""}
-          aria-describedby={
-            finalTouched && finalEducation === "" ? "error-finalEducation" : undefined
-          }
-          style={{
-            display: "grid",
-            gap: "8px",
-            gridTemplateColumns: "repeat(auto-fit, minmax(120px, 1fr))",
-          }}
-        >
-          {finalEducationOptions.map((option) => {
-            const checked = finalEducation === option;
-            const isFocused = focusedFinalEducation === option;
-            return (
-              <label
-                key={option}
-                style={{
-                  position: "relative",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  borderRadius: "9999px",
-                  border: checked
-                    ? "2px solid var(--color-primary, #2563eb)"
-                    : isFocused
-                      ? "2px solid rgba(37, 99, 235, 0.6)"
-                      : "1px solid var(--color-border, #d1d5db)",
-                  padding: "10px 14px",
-                  backgroundColor: checked ? "rgba(37, 99, 235, 0.08)" : "#ffffff",
-                  color: checked
-                    ? "var(--color-primary, #2563eb)"
-                    : "var(--color-text-strong, #111827)",
-                  fontWeight: 600,
-                  cursor: "pointer",
-                  fontSize: "0.95rem",
-                  transition: "border-color 0.2s ease, background-color 0.2s ease",
-                  boxShadow: isFocused ? "0 0 0 4px rgba(37, 99, 235, 0.15)" : "none",
-                }}
-              >
+      <div className="final-education">
+        <fieldset className="final-education__fieldset">
+          <legend className="final-education__legend">最終学歴</legend>
+          <div className="final-education__options">
+            {finalEducationOptions.map((option) => (
+              <label key={option} className="final-education__option">
                 <input
                   type="radio"
                   name="finalEducation"
                   value={option}
-                  checked={checked}
+                  checked={finalEducation === option}
                   onChange={handleFinalEducationChange}
-                  onFocus={() => setFocusedFinalEducation(option)}
-                  onBlur={() => setFocusedFinalEducation(null)}
-                  style={{ display: "none" }}
+                  className="final-education__input"
                 />
-                <span>{option}</span>
+                <span className="final-education__label">{option}</span>
               </label>
-            );
-          })}
-        </div>
-        {finalTouched && finalEducation === "" && (
-          <p
-            id="error-finalEducation"
-            role="alert"
-            style={{ marginTop: "4px", color: "#dc2626", fontSize: "0.875rem" }}
-          >
-            最終学歴を選択してください
-          </p>
-        )}
+            ))}
+          </div>
+        </fieldset>
         {finalSaveState !== "idle" && (
           <p style={{ marginTop: "8px", fontSize: "0.75rem", color: "var(--color-secondary, #6b7280)" }}>
             {finalSaveState === "saving" && "最終学歴を保存中…"}
@@ -753,7 +685,7 @@ export default function EducationForm() {
         )}
       </div>
 
-      <StepNav step={3} nextType="submit" nextDisabled={nextDisabled} />
+      <StepNav step={3} nextType="link" nextHref="/resume/4" />
     </form>
   );
 }
