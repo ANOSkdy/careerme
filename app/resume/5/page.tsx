@@ -324,62 +324,64 @@ export default function ResumeStep5Page() {
 
   return (
     <div className="resume-step">
-      <h1 className="resume-step__title">希望条件</h1>
-      <p className="resume-step__description">希望する勤務地・職種・業界を選択してください。</p>
-      <div className="resume-step__status">
-        <AutoSaveBadge state={saveState} />
-      </div>
-      {loadError ? <p className="form-error" role="alert">{loadError}</p> : null}
-      <form className="resume-form" onSubmit={handleSubmit} noValidate>
-        <section className="desired-section">
-          <header className="desired-section__header">
-            <h2>希望勤務地</h2>
-            <button type="button" className="button button--secondary" onClick={() => setLocationsOpen(true)}>
-              選択する
-            </button>
-          </header>
-          {renderChipGroup(desired.locations, lookupOptions.locations, toggleLocation)}
-        </section>
+      <form onSubmit={handleSubmit} noValidate>
+        <h1 className="resume-step__title">希望条件</h1>
+        <p className="resume-step__description">希望する勤務地・職種・業界を選択してください。</p>
+        <div className="resume-step__status">
+          <AutoSaveBadge state={saveState} />
+        </div>
+        {loadError ? <p className="form-error" role="alert">{loadError}</p> : null}
+        <div className="resume-form">
+          <section className="desired-section">
+            <header className="desired-section__header">
+              <h2>希望勤務地</h2>
+              <button type="button" className="button button--secondary" onClick={() => setLocationsOpen(true)}>
+                選択する
+              </button>
+            </header>
+            {renderChipGroup(desired.locations, lookupOptions.locations, toggleLocation)}
+          </section>
 
-        <section className="desired-section">
-          <header className="desired-section__header">
-            <h2>希望職種</h2>
-            <button type="button" className="button button--secondary" onClick={() => setRolesOpen(true)}>
-              選択する
-            </button>
-          </header>
-          {renderChipGroup(desired.roles, lookupOptions.roles, toggleRole)}
-        </section>
+          <section className="desired-section">
+            <header className="desired-section__header">
+              <h2>希望職種</h2>
+              <button type="button" className="button button--secondary" onClick={() => setRolesOpen(true)}>
+                選択する
+              </button>
+            </header>
+            {renderChipGroup(desired.roles, lookupOptions.roles, toggleRole)}
+          </section>
 
-        <section className="desired-section">
-          <header className="desired-section__header">
-            <h2>希望業界</h2>
-            <button type="button" className="button button--secondary" onClick={() => setIndustriesOpen(true)}>
-              選択する
-            </button>
-          </header>
-          {renderChipGroup(desired.industries, lookupOptions.industries, toggleIndustry)}
-        </section>
+          <section className="desired-section">
+            <header className="desired-section__header">
+              <h2>希望業界</h2>
+              <button type="button" className="button button--secondary" onClick={() => setIndustriesOpen(true)}>
+                選択する
+              </button>
+            </header>
+            {renderChipGroup(desired.industries, lookupOptions.industries, toggleIndustry)}
+          </section>
 
-        {submitError ? (
-          <p className="form-error" role="alert">
-            {submitError}
-          </p>
-        ) : null}
-        {!hasAnySelection && submitted ? (
-          <p className="form-error" role="alert">
-            いずれかの項目を1つ以上選択してください。
-          </p>
-        ) : null}
-        <StepNav
-          step={5}
-          totalSteps={5}
-          prevHref="/resume/4"
-          nextHref="/cv/1"
-          nextType="submit"
-          nextDisabled={isLoading || !hasAnySelection || !validation.success}
-          nextLabel="次へ"
-        />
+          {submitError ? (
+            <p className="form-error" role="alert">
+              {submitError}
+            </p>
+          ) : null}
+          {!hasAnySelection && submitted ? (
+            <p className="form-error" role="alert">
+              いずれかの項目を1つ以上選択してください。
+            </p>
+          ) : null}
+          <StepNav
+            step={5}
+            totalSteps={5}
+            prevHref="/resume/4"
+            nextHref="/cv/1"
+            nextType="submit"
+            nextDisabled={isLoading || !hasAnySelection || !validation.success}
+            nextLabel="次へ"
+          />
+        </div>
       </form>
 
       <Modal open={locationsOpen} onClose={() => setLocationsOpen(false)} title="希望勤務地">
