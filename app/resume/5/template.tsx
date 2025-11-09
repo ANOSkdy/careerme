@@ -7,24 +7,25 @@ type TemplateProps = {
   children: ReactNode;
 };
 
-export default function ResumeStep5Template({ children }: TemplateProps) {
+export default function Template({ children }: TemplateProps) {
   const [nextHost, setNextHost] = useState<HTMLElement | null>(null);
   const observerRef = useRef<MutationObserver | null>(null);
+  const intervalRef = useRef<number | null>(null);
+  const hostRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
-    const form = document.querySelector<HTMLFormElement>(".resume-step form");
+    const locateForm = () =>
+      document.querySelector<HTMLFormElement>(".resume-step form") ??
+      document.querySelector<HTMLFormElement>("main form");
+
+    const form = locateForm();
     if (!form) return;
 
-    form.setAttribute("noValidate", "true");
-    form.classList.add("r5-enhanced-form");
-
-    const resumeStep = form.closest<HTMLElement>(".resume-step");
-    resumeStep?.classList.add("r5-enhanced-step");
-
     const main = form.closest<HTMLElement>("main");
-    main?.classList.add("r5-enhanced-main");
+    const resumeStep = form.closest<HTMLElement>(".resume-step") ?? form.parentElement;
 
     const removeGuards = () => {
+      form.setAttribute("noValidate", "true");
       form.querySelectorAll("[required]").forEach((el) => el.removeAttribute("required"));
       form
         .querySelectorAll("[aria-required='true']")
@@ -34,12 +35,12 @@ export default function ResumeStep5Template({ children }: TemplateProps) {
         .forEach((el) => {
           el.removeAttribute("disabled");
           el.style.pointerEvents = "auto";
-          el.style.opacity = "";
+          el.style.opacity = "1";
         });
       form.querySelectorAll<HTMLElement>("[aria-disabled='true']").forEach((el) => {
         el.setAttribute("aria-disabled", "false");
         el.style.pointerEvents = "auto";
-        el.style.opacity = "";
+        el.style.opacity = "1";
       });
       form.querySelectorAll<HTMLElement>("[tabindex='-1']").forEach((el) => {
         el.removeAttribute("tabindex");
@@ -66,20 +67,35 @@ export default function ResumeStep5Template({ children }: TemplateProps) {
         });
     };
 
-    removeGuards();
-    hideNativeNext();
+    const ensureHost = () => {
+      if (hostRef.current && !hostRef.current.isConnected) {
+        hostRef.current = null;
+        setNextHost(null);
+      }
+      if (!hostRef.current) {
+        const host = document.createElement("div");
+        host.id = "resume-step5-next";
+        host.className = "r5-next-host";
+        form.appendChild(host);
+        hostRef.current = host;
+        setNextHost(host);
+      }
+    };
 
-    const host = document.createElement("div");
-    host.className = "r5-next-host";
-    form.appendChild(host);
-    const hostTimeout = window.setTimeout(() => {
-      setNextHost(host);
-    }, 0);
+    const applyEnhancements = () => {
+      main?.classList.add("r5-enhanced-main");
+      resumeStep?.classList.add("r5-enhanced-step");
+      form.classList.add("r5-enhanced-form");
+      removeGuards();
+      hideNativeNext();
+      ensureHost();
+    };
+
+    applyEnhancements();
 
     observerRef.current?.disconnect();
     observerRef.current = new MutationObserver(() => {
-      removeGuards();
-      hideNativeNext();
+      applyEnhancements();
     });
     observerRef.current.observe(form, {
       subtree: true,
@@ -87,11 +103,20 @@ export default function ResumeStep5Template({ children }: TemplateProps) {
       attributes: true,
     });
 
+    intervalRef.current = window.setInterval(applyEnhancements, 750);
+
     return () => {
       observerRef.current?.disconnect();
       observerRef.current = null;
-      clearTimeout(hostTimeout);
-      host.remove();
+      if (intervalRef.current) {
+        window.clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+      if (hostRef.current?.parentElement) {
+        hostRef.current.parentElement.removeChild(hostRef.current);
+      }
+      hostRef.current = null;
+      setNextHost(null);
     };
   }, []);
 
@@ -100,17 +125,17 @@ export default function ResumeStep5Template({ children }: TemplateProps) {
       {children}
       <style>{`
         .r5-enhanced-main {
-          display: flex;
-          justify-content: center;
-          padding: 32px 16px;
-          box-sizing: border-box;
+          display: flex !important;
+          justify-content: center !important;
+          padding: 32px 16px !important;
+          box-sizing: border-box !important;
         }
 
         .r5-enhanced-step {
           width: 100%;
           max-width: 720px;
           margin: 0 auto;
-          padding: 24px;
+          padding: 0 0 48px;
           box-sizing: border-box;
         }
 
@@ -119,6 +144,10 @@ export default function ResumeStep5Template({ children }: TemplateProps) {
           flex-direction: column;
           gap: 24px;
           width: 100%;
+          max-width: 720px;
+          margin: 0 auto;
+          padding: 24px 0 0;
+          box-sizing: border-box;
         }
 
         .r5-enhanced-form .resume-form {
@@ -127,14 +156,14 @@ export default function ResumeStep5Template({ children }: TemplateProps) {
           gap: 24px;
         }
 
-        .r5-enhanced-form .step-nav {
-          margin-top: 24px;
-        }
-
         .r5-enhanced-form label::after,
         .r5-enhanced-form .required::after,
         .r5-enhanced-form .is-required::after {
           content: none !important;
+        }
+
+        .r5-enhanced-form .step-nav__button--primary {
+          display: none !important;
         }
 
         .resume-step .modal-list {
@@ -159,7 +188,10 @@ export default function ResumeStep5Template({ children }: TemplateProps) {
         }
 
         .resume-step .modal-option span {
-          display: inline-block;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          min-width: 72px;
           padding: 8px 16px;
           border-radius: 9999px;
           border: 1px solid var(--color-border, #cbd5e1);
@@ -179,9 +211,8 @@ export default function ResumeStep5Template({ children }: TemplateProps) {
           outline-offset: 2px;
         }
 
-        .resume-step .modal-option span {
-          min-width: 72px;
-          text-align: center;
+        .resume-step .modal-option span::after {
+          content: attr(data-badge);
         }
 
         .r5-next-host {
@@ -198,6 +229,11 @@ export default function ResumeStep5Template({ children }: TemplateProps) {
           color: #ffffff;
           font-weight: 700;
           text-decoration: none;
+        }
+
+        .r5-next-button:focus-visible {
+          outline: 2px solid var(--color-primary, #2563eb);
+          outline-offset: 2px;
         }
       `}</style>
       {nextHost &&
