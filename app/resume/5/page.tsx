@@ -35,6 +35,10 @@ type ResumeResponse = {
   desired?: unknown;
 };
 
+type SubmitRegistrar = (
+  handler: ((event: FormEvent<HTMLFormElement>) => void) | null
+) => void;
+
 function toDesired(value: unknown): DesiredConditions {
   const parsed = DesiredConditionsSchema.safeParse(value);
   if (parsed.success) {
@@ -47,7 +51,7 @@ function findLabel(options: TagOption[], value: string) {
   return options.find((option) => option.value === value)?.label ?? value;
 }
 
-export default function ResumeStep5Page() {
+function ResumeStep5PageContent({ registerSubmit }: { registerSubmit: SubmitRegistrar }) {
   const router = useRouter();
   const [resumeId, setResumeId] = useState<string | null>(null);
   const resumeIdRef = useRef<string | null>(null);
@@ -301,6 +305,11 @@ export default function ResumeStep5Page() {
     [flushSaves, hasAnySelection, router, validation.success]
   );
 
+  useEffect(() => {
+    registerSubmit(handleSubmit);
+    return () => registerSubmit(null);
+  }, [handleSubmit, registerSubmit]);
+
   const renderChipGroup = useCallback(
     (values: string[], options: TagOption[], onRemove: (value: string) => void) => {
       if (!values.length) {
@@ -323,14 +332,14 @@ export default function ResumeStep5Page() {
   );
 
   return (
-    <div className="resume-step">
+    <>
       <h1 className="resume-step__title">希望条件</h1>
       <p className="resume-step__description">希望する勤務地・職種・業界を選択してください。</p>
       <div className="resume-step__status">
         <AutoSaveBadge state={saveState} />
       </div>
       {loadError ? <p className="form-error" role="alert">{loadError}</p> : null}
-      <form className="resume-form" onSubmit={handleSubmit} noValidate>
+      <div className="resume-form">
         <section className="desired-section">
           <header className="desired-section__header">
             <h2>希望勤務地</h2>
@@ -380,7 +389,7 @@ export default function ResumeStep5Page() {
           nextDisabled={isLoading || !hasAnySelection || !validation.success}
           nextLabel="次へ"
         />
-      </form>
+      </div>
 
       <Modal open={locationsOpen} onClose={() => setLocationsOpen(false)} title="希望勤務地">
         <div className="modal-list">
@@ -459,6 +468,29 @@ export default function ResumeStep5Page() {
           </button>
         </div>
       </Modal>
+    </>
+  );
+}
+
+export default function ResumeStep5Page() {
+  const submitHandlerRef = useRef<((event: FormEvent<HTMLFormElement>) => void) | null>(null);
+
+  const registerSubmit = useCallback<SubmitRegistrar>((handler) => {
+    submitHandlerRef.current = handler;
+  }, []);
+
+  const handleSubmitProxy = useCallback(
+    (event: FormEvent<HTMLFormElement>) => {
+      submitHandlerRef.current?.(event);
+    },
+    []
+  );
+
+  return (
+    <div className="resume-step">
+      <form noValidate onSubmit={handleSubmitProxy}>
+        <ResumeStep5PageContent registerSubmit={registerSubmit} />
+      </form>
     </div>
   );
 }
