@@ -345,3 +345,50 @@ input[type="radio"] {
   outline: 2px solid rgba(58, 117, 196, 0.55);
   outline-offset: 2px;
 }
+
+.gender-options {
+  display: flex;
+  gap: var(--space-xs);
+  margin-top: var(--space-xs);
+}
+
+.gender-option {
+  position: relative;
+  flex: 1;
+}
+
+.gender-option__input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.gender-option__label {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 2.5rem;
+  padding: 0.5rem 1rem;
+  border-radius: 9999px;
+  border: 1px solid var(--color-border);
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-weight: 600;
+  white-space: nowrap;
+  transition: background-color 0.2s ease, color 0.2s ease,
+    border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.gender-option__input:checked + .gender-option__label {
+  background: var(--color-primary);
+  color: #ffffff;
+  border-color: var(--color-primary);
+  box-shadow: 0 8px 20px rgba(58, 117, 196, 0.25);
+}
+
+.gender-option__input:focus-visible + .gender-option__label {
+  outline: 2px solid rgba(58, 117, 196, 0.55);
+  outline-offset: 2px;
+}
