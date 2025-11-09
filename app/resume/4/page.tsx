@@ -517,9 +517,6 @@ export default function ResumeStep4Page() {
       event.preventDefault();
       setSubmitError(null);
       setSubmitted(true);
-      if (!validation.isValid || !validation.parsed) {
-        return;
-      }
       const success = await flushSaves();
       if (!success) {
         setSubmitError("保存に失敗しました。時間をおいて再度お試しください。");
@@ -527,7 +524,7 @@ export default function ResumeStep4Page() {
       }
       router.push("/resume/5");
     },
-    [flushSaves, router, validation.isValid, validation.parsed]
+    [flushSaves, router]
   );
 
   const handleCompanyChange = useCallback(
@@ -580,7 +577,7 @@ export default function ResumeStep4Page() {
         <AutoSaveBadge state={saveState} />
       </div>
       {loadError ? <p className="form-error" role="alert">{loadError}</p> : null}
-      <form className="resume-form" onSubmit={handleSubmit} noValidate>
+      <form className="resume-form" onSubmit={handleSubmit} noValidate aria-busy={isLoading}>
         <div className="work-list">
           {rows.map((row, index) => {
             const errors = validation.rowErrors[index] ?? {};
@@ -589,7 +586,7 @@ export default function ResumeStep4Page() {
                 <legend className="work-entry__legend">職歴 {index + 1}</legend>
                 <div className="form-field">
                   <label htmlFor={`company-${row.key}`} className="form-label">
-                    会社名<span className="form-required">*</span>
+                    会社名
                   </label>
                   <input
                     id={`company-${row.key}`}
@@ -641,7 +638,7 @@ export default function ResumeStep4Page() {
                 <div className="form-field-grid">
                   <div className="form-field">
                     <label htmlFor={`start-${row.key}`} className="form-label">
-                      入社年月<span className="form-required">*</span>
+                      入社年月
                     </label>
                     <MonthYearSelect
                       id={`start-${row.key}`}
@@ -728,7 +725,6 @@ export default function ResumeStep4Page() {
           prevHref="/resume/3"
           nextHref="/resume/5"
           nextType="submit"
-          nextDisabled={isLoading || !validation.isValid}
         />
       </form>
     </div>
