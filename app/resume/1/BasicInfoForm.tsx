@@ -1,7 +1,6 @@
 
 "use client";
 
-import { useRouter } from "next/navigation";
 import {
   useCallback,
   useEffect,
@@ -10,7 +9,7 @@ import {
   useState,
   type ChangeEvent,
   type CSSProperties,
-  type FormEvent,
+  type KeyboardEvent,
 } from "react";
 
 import StepNav from "../_components/StepNav";
@@ -24,7 +23,7 @@ import {
 const genderOptions: { value: BasicInfo["gender"]; label: string }[] = [
   { value: "male", label: "男性" },
   { value: "female", label: "女性" },
-  { value: "none", label: "未選択" },
+  { value: "none", label: "選択しない" },
 ];
 
 const currentYear = new Date().getFullYear();
@@ -61,8 +60,6 @@ type FormState = {
   };
 };
 
-type FieldKey = "lastName" | "firstName" | "gender" | "dob.year" | "dob.month" | "dob.day";
-
 type ResumeResponse = {
   id?: string | null;
   basicInfo?: BasicInfo | null;
@@ -89,25 +86,15 @@ function formFromBasicInfo(value: BasicInfo): FormState {
 }
 
 export default function BasicInfoForm() {
-  const router = useRouter();
   const [resumeId, setResumeId] = useState<string | null>(null);
   const resumeIdRef = useRef<string | null>(null);
   const [form, setForm] = useState<FormState>(initialForm);
-  const [touched, setTouched] = useState<Record<FieldKey, boolean>>({
-    lastName: false,
-    firstName: false,
-    gender: false,
-    "dob.year": false,
-    "dob.month": false,
-    "dob.day": false,
-  });
-  const [errors, setErrors] = useState<Record<string, string>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [saveState, setSaveState] = useState<SaveState>("idle");
   const [saveError, setSaveError] = useState<string | null>(null);
-  const [submitAttempted, setSubmitAttempted] = useState(false);
   const lastSavedSnapshotRef = useRef<string | null>(null);
   const ensureIdPromiseRef = useRef<Promise<string | null> | null>(null);
+  const genderButtonRefs = useRef<Array<HTMLButtonElement | null>>([]);
 
   useEffect(() => {
     resumeIdRef.current = resumeId;
@@ -194,19 +181,6 @@ export default function BasicInfoForm() {
 
   const parsed = useMemo(() => BasicInfoSchema.safeParse(form), [form]);
 
-  useEffect(() => {
-    if (parsed.success) {
-      setErrors({});
-    } else {
-      const map: Record<string, string> = {};
-      for (const issue of parsed.error.issues) {
-        const key = issue.path.join(".");
-        map[key] = issue.message;
-      }
-      setErrors(map);
-    }
-  }, [parsed]);
-
   const yearNumber = Number.parseInt(form.dob.year, 10);
   const monthNumber = Number.parseInt(form.dob.month, 10);
   const maxDay = getDaysInMonth(
@@ -276,14 +250,6 @@ export default function BasicInfoForm() {
     await saveBasicInfo(value);
   }, 2000, { enabled: Boolean(autoSavePayload) && !isLoading });
 
-  const setFieldTouched = useCallback((field: FieldKey) => {
-    setTouched((prev) => ({ ...prev, [field]: true }));
-  }, []);
-
-  const handleBlur = useCallback((field: FieldKey) => {
-    setFieldTouched(field);
-  }, [setFieldTouched]);
-
   const handleInputChange = (field: "lastName" | "firstName") =>
     (event: ChangeEvent<HTMLInputElement>) => {
       const { value } = event.target;
@@ -302,54 +268,42 @@ export default function BasicInfoForm() {
       }));
     };
 
-  const handleGenderSelect = (value: BasicInfo["gender"]) => {
+  const handleGenderSelect = useCallback((value: BasicInfo["gender"]) => {
     setForm((prev) => ({ ...prev, gender: value }));
-    setFieldTouched("gender");
-  };
+  }, []);
 
-  const showError = (field: FieldKey) => {
-    const key = field;
-    const message = errors[key] ?? (field.startsWith("dob") ? errors["dob"] : undefined);
-    return Boolean(message) && (touched[field] || submitAttempted);
-  };
+  const handleGenderKeyDown = useCallback(
+    (event: KeyboardEvent<HTMLButtonElement>, currentIndex: number) => {
+      const { key } = event;
+      let nextIndex = currentIndex;
+      if (key === "ArrowRight" || key === "ArrowDown") {
+        event.preventDefault();
+        nextIndex = (currentIndex + 1) % genderOptions.length;
+      } else if (key === "ArrowLeft" || key === "ArrowUp") {
+        event.preventDefault();
+        nextIndex =
+          (currentIndex - 1 + genderOptions.length) % genderOptions.length;
+      } else {
+        return;
+      }
 
-  const getErrorMessage = (field: FieldKey) => {
-    const key = field;
-    return errors[key] ?? (field.startsWith("dob") ? errors["dob"] : undefined);
-  };
+      const nextValue = genderOptions[nextIndex]?.value ?? "none";
+      handleGenderSelect(nextValue);
+      genderButtonRefs.current[nextIndex]?.focus();
+    },
+    [handleGenderSelect]
+  );
 
-  const nextDisabled = !parsed.success || isLoading;
-
-  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    setSubmitAttempted(true);
-
-    const result = BasicInfoSchema.safeParse(form);
-    if (!result.success) {
-      const allTouched: Record<FieldKey, boolean> = {
-        lastName: true,
-        firstName: true,
-        gender: true,
-        "dob.year": true,
-        "dob.month": true,
-        "dob.day": true,
-      };
-      setTouched(allTouched);
-      return;
-    }
-
-    const saved = await saveBasicInfo(result.data, { force: true });
-    if (saved) {
-      router.push("/resume/2");
-    }
-  };
+  const hasSelectedGender = genderOptions.some(
+    (candidate) => candidate.value === form.gender
+  );
 
   return (
-    <form onSubmit={handleSubmit} style={{ display: "grid", gap: "24px" }}>
+    <form style={{ display: "grid", gap: "24px" }}>
       <div>
         <h2 className="resume-page-title">基本情報</h2>
         <p style={{ color: "var(--color-secondary, #6b7280)", fontSize: "0.875rem" }}>
-          氏名と生年月日を入力してください。必要事項の入力後、「次へ」で次に進めます。
+          氏名と生年月日を入力してください。入力途中でも「次へ」で次に進めます。
         </p>
       </div>
 
@@ -359,31 +313,23 @@ export default function BasicInfoForm() {
             htmlFor="lastName"
             style={{ display: "block", fontSize: "0.875rem", fontWeight: 600, color: "var(--color-text, #333333)" }}
           >
-            姓 <span style={{ color: "var(--color-required, #FF4500)" }}>*</span>
+            姓
           </label>
           <input
             id="lastName"
             name="lastName"
             value={form.lastName}
             onChange={handleInputChange("lastName")}
-            onBlur={() => handleBlur("lastName")}
-            aria-invalid={showError("lastName")}
-            aria-describedby={showError("lastName") ? "error-lastName" : undefined}
             style={{
               marginTop: "4px",
               width: "100%",
               borderRadius: "8px",
-              border: `1px solid ${showError("lastName") ? "#dc2626" : "var(--color-border, #CCCCCC)"}`,
+              border: "1px solid var(--color-border, #CCCCCC)",
               padding: "10px 14px",
               fontSize: "1rem",
             }}
             placeholder="例：山田"
           />
-          {showError("lastName") && (
-            <p id="error-lastName" style={{ marginTop: "4px", fontSize: "0.75rem", color: "#dc2626" }}>
-              {getErrorMessage("lastName")}
-            </p>
-          )}
         </div>
 
         <div>
@@ -391,77 +337,84 @@ export default function BasicInfoForm() {
             htmlFor="firstName"
             style={{ display: "block", fontSize: "0.875rem", fontWeight: 600, color: "var(--color-text, #333333)" }}
           >
-            名 <span style={{ color: "var(--color-required, #FF4500)" }}>*</span>
+            名
           </label>
           <input
             id="firstName"
             name="firstName"
             value={form.firstName}
             onChange={handleInputChange("firstName")}
-            onBlur={() => handleBlur("firstName")}
-            aria-invalid={showError("firstName")}
-            aria-describedby={showError("firstName") ? "error-firstName" : undefined}
             style={{
               marginTop: "4px",
               width: "100%",
               borderRadius: "8px",
-              border: `1px solid ${showError("firstName") ? "#dc2626" : "var(--color-border, #CCCCCC)"}`,
+              border: "1px solid var(--color-border, #CCCCCC)",
               padding: "10px 14px",
               fontSize: "1rem",
             }}
             placeholder="例：太郎"
           />
-          {showError("firstName") && (
-            <p id="error-firstName" style={{ marginTop: "4px", fontSize: "0.75rem", color: "#dc2626" }}>
-              {getErrorMessage("firstName")}
-            </p>
-          )}
         </div>
 
         <fieldset style={{ border: "none", padding: 0, margin: 0 }}>
           <legend style={srOnlyStyle}>性別</legend>
           <span style={{ display: "block", fontSize: "0.875rem", fontWeight: 600, color: "var(--color-text, #333333)" }}>
-            性別 <span style={{ color: "var(--color-required, #FF4500)" }}>*</span>
+            性別
           </span>
-          <div style={{ display: "flex", gap: "8px", marginTop: "8px" }}>
-            {genderOptions.map((option) => (
-              <label
-                key={option.value}
-                style={{
-                  display: "inline-flex",
-                  alignItems: "center",
-                  gap: "6px",
-                  padding: "8px 12px",
-                  borderRadius: "9999px",
-                  border: form.gender === option.value ? "2px solid var(--color-primary, #2563eb)" : "1px solid var(--color-border, #cccccc)",
-                  backgroundColor:
-                    form.gender === option.value ? "rgba(37, 99, 235, 0.1)" : "#ffffff",
-                  cursor: "pointer",
-                }}
-              >
-                <input
-                  type="radio"
-                  name="gender"
-                  value={option.value}
-                  checked={form.gender === option.value}
-                  onChange={() => handleGenderSelect(option.value)}
-                  onBlur={() => handleBlur("gender")}
-                  style={{ display: "none" }}
-                />
-                <span>{option.label}</span>
-              </label>
-            ))}
+          <input type="hidden" name="gender" value={form.gender ?? ""} />
+          <div
+            role="radiogroup"
+            aria-label="性別"
+            style={{ display: "flex", gap: "8px", marginTop: "8px" }}
+          >
+            {genderOptions.map((option, index) => {
+              const active = form.gender === option.value;
+              const tabIndex = active || (!hasSelectedGender && index === 0) ? 0 : -1;
+              return (
+                <button
+                  key={option.value}
+                  ref={(element) => {
+                    genderButtonRefs.current[index] = element;
+                  }}
+                  type="button"
+                  role="radio"
+                  aria-checked={active}
+                  tabIndex={tabIndex}
+                  onClick={() => handleGenderSelect(option.value)}
+                  onKeyDown={(event) => handleGenderKeyDown(event, index)}
+                  style={{
+                    flex: 1,
+                    display: "inline-flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    gap: "6px",
+                    padding: "8px 16px",
+                    borderRadius: "9999px",
+                    border: active
+                      ? "2px solid var(--color-primary, #2563eb)"
+                      : "1px solid var(--color-border, #cccccc)",
+                    backgroundColor: active
+                      ? "rgba(37, 99, 235, 0.12)"
+                      : "#ffffff",
+                    color: active
+                      ? "var(--color-primary, #2563eb)"
+                      : "var(--color-text, #333333)",
+                    fontWeight: 600,
+                    cursor: "pointer",
+                    transition: "all 0.2s ease",
+                    textAlign: "center",
+                  }}
+                >
+                  {option.label}
+                </button>
+              );
+            })}
           </div>
-          {showError("gender") && (
-            <p style={{ marginTop: "4px", fontSize: "0.75rem", color: "#dc2626" }}>
-              {getErrorMessage("gender")}
-            </p>
-          )}
         </fieldset>
 
         <div>
           <span style={{ display: "block", fontSize: "0.875rem", fontWeight: 600, color: "var(--color-text, #333333)" }}>
-            生年月日 <span style={{ color: "var(--color-required, #FF4500)" }}>*</span>
+            生年月日
           </span>
           <div style={{ display: "flex", gap: "12px", marginTop: "8px" }}>
             <label style={{ flex: 1 }}>
@@ -469,20 +422,15 @@ export default function BasicInfoForm() {
               <select
                 value={form.dob.year}
                 onChange={handleDobChange("year")}
-                onBlur={() => handleBlur("dob.year")}
-                aria-invalid={showError("dob.year")}
-                aria-describedby={showError("dob.year") ? "error-dob-year" : undefined}
                 style={{
                   width: "100%",
                   borderRadius: "8px",
-                  border: `1px solid ${showError("dob.year") ? "#dc2626" : "var(--color-border, #CCCCCC)"}`,
+                  border: "1px solid var(--color-border, #CCCCCC)",
                   padding: "10px 12px",
                   fontSize: "1rem",
                 }}
               >
-                <option value="" disabled>
-                  年を選択
-                </option>
+                <option value="">年を選択</option>
                 {years.map((year) => (
                   <option key={year} value={year}>
                     {year}
@@ -495,20 +443,15 @@ export default function BasicInfoForm() {
               <select
                 value={form.dob.month}
                 onChange={handleDobChange("month")}
-                onBlur={() => handleBlur("dob.month")}
-                aria-invalid={showError("dob.month")}
-                aria-describedby={showError("dob.month") ? "error-dob-month" : undefined}
                 style={{
                   width: "100%",
                   borderRadius: "8px",
-                  border: `1px solid ${showError("dob.month") ? "#dc2626" : "var(--color-border, #CCCCCC)"}`,
+                  border: "1px solid var(--color-border, #CCCCCC)",
                   padding: "10px 12px",
                   fontSize: "1rem",
                 }}
               >
-                <option value="" disabled>
-                  月を選択
-                </option>
+                <option value="">月を選択</option>
                 {months.map((month) => (
                   <option key={month} value={month}>
                     {month}
@@ -521,20 +464,15 @@ export default function BasicInfoForm() {
               <select
                 value={form.dob.day}
                 onChange={handleDobChange("day")}
-                onBlur={() => handleBlur("dob.day")}
-                aria-invalid={showError("dob.day")}
-                aria-describedby={showError("dob.day") ? "error-dob-day" : undefined}
                 style={{
                   width: "100%",
                   borderRadius: "8px",
-                  border: `1px solid ${showError("dob.day") ? "#dc2626" : "var(--color-border, #CCCCCC)"}`,
+                  border: "1px solid var(--color-border, #CCCCCC)",
                   padding: "10px 12px",
                   fontSize: "1rem",
                 }}
               >
-                <option value="" disabled>
-                  日を選択
-                </option>
+                <option value="">日を選択</option>
                 {days.map((day) => (
                   <option key={day} value={day}>
                     {day}
@@ -543,11 +481,6 @@ export default function BasicInfoForm() {
               </select>
             </label>
           </div>
-          {(showError("dob.year") || showError("dob.month") || showError("dob.day")) && (
-            <p style={{ marginTop: "4px", fontSize: "0.75rem", color: "#dc2626" }}>
-              {errors["dob.year"] || errors["dob.month"] || errors["dob.day"] || errors["dob"]}
-            </p>
-          )}
         </div>
       </div>
 
@@ -566,7 +499,7 @@ export default function BasicInfoForm() {
         )}
       </div>
 
-      <StepNav step={1} nextType="submit" nextDisabled={nextDisabled} />
+      <StepNav step={1} nextType="link" nextHref="/resume/2" />
     </form>
   );
 }
