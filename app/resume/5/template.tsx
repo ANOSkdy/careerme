@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 
-export default function ResumeStep5Template({
+export function ResumeStep5Template({
   children,
 }: {
   children: ReactNode;
@@ -11,6 +11,7 @@ export default function ResumeStep5Template({
   const [portalHost, setPortalHost] = useState<HTMLElement | null>(null);
   const observerRef = useRef<MutationObserver | null>(null);
   const hostRef = useRef<HTMLElement | null>(null);
+  const hostCreatedRef = useRef(false);
 
   const neutralizeGuards = (form: HTMLFormElement) => {
     form.querySelectorAll("[required]").forEach((el) => {
@@ -49,12 +50,15 @@ export default function ResumeStep5Template({
   const ensureNextLink = (form: HTMLFormElement) => {
     const hostId = "resume5-next-link";
     let host = form.querySelector<HTMLElement>(`#${hostId}`);
+    let created = false;
     if (!host) {
       host = document.createElement("div");
       host.id = hostId;
       host.style.marginTop = "24px";
       form.appendChild(host);
+      created = true;
     }
+    hostCreatedRef.current = hostCreatedRef.current || created;
     hostRef.current = host;
     setPortalHost((prev) => (prev === host ? prev : host));
 
@@ -72,6 +76,13 @@ export default function ResumeStep5Template({
       section.querySelectorAll<HTMLInputElement>("input[type='checkbox'], input[type='radio']")
     );
     if (!inputs.length) return;
+
+    if (section.dataset.r5Pills === "true") {
+      const pending = inputs.some((input) => !input.classList.contains("r5-pill-input"));
+      if (!pending) {
+        return;
+      }
+    }
 
     inputs.forEach((input) => {
       input.classList.add("r5-pill-input");
@@ -129,36 +140,42 @@ export default function ResumeStep5Template({
 
   useEffect(() => {
     const applyEnhancements = () => {
-      const main = document.querySelector("main");
+      const main = (document.querySelector("main") as HTMLElement | null) ?? document.body;
       const container = document.querySelector<HTMLElement>(".resume-step");
       const form =
         (container?.querySelector("form") as HTMLFormElement | null) ??
         (main?.querySelector("form") as HTMLFormElement | null) ??
         (document.querySelector("form") as HTMLFormElement | null);
 
-      if (main instanceof HTMLElement) {
+      if (main instanceof HTMLElement && main.dataset.r5LayoutApplied !== "true") {
         main.style.display = "flex";
         main.style.justifyContent = "center";
         main.style.padding = "32px 16px";
         main.style.boxSizing = "border-box";
+        main.dataset.r5LayoutApplied = "true";
       }
 
-      if (container) {
+      if (container && container.dataset.r5LayoutApplied !== "true") {
         container.style.margin = "0 auto";
         container.style.width = "100%";
         container.style.maxWidth = "720px";
         container.style.padding = "24px";
         container.style.boxSizing = "border-box";
+        container.dataset.r5LayoutApplied = "true";
       }
 
       if (!form) return;
 
+      const firstPass = form.dataset.r5Enhanced !== "true";
+      form.dataset.r5Enhanced = "true";
       form.noValidate = true;
-      form.style.width = "100%";
-      form.style.maxWidth = "720px";
-      form.style.margin = "0 auto";
-      form.style.padding = "24px 0 48px";
-      form.style.boxSizing = "border-box";
+      if (firstPass) {
+        form.style.width = "100%";
+        form.style.maxWidth = "720px";
+        form.style.margin = "0 auto";
+        form.style.padding = "24px 0 48px";
+        form.style.boxSizing = "border-box";
+      }
 
       neutralizeGuards(form);
       enableActions(form);
@@ -196,9 +213,11 @@ export default function ResumeStep5Template({
     return () => {
       observerRef.current?.disconnect();
       observerRef.current = null;
-      if (hostRef.current?.parentElement) {
+      if (hostCreatedRef.current && hostRef.current?.parentElement) {
         hostRef.current.parentElement.removeChild(hostRef.current);
       }
+      hostRef.current = null;
+      hostCreatedRef.current = false;
     };
   }, []);
   return (
@@ -270,3 +289,5 @@ export default function ResumeStep5Template({
     </>
   );
 }
+
+export default ResumeStep5Template;

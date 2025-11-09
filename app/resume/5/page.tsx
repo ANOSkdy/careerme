@@ -10,6 +10,7 @@ import {
   type FormEvent,
 } from "react";
 
+import { ResumeStep5Template } from "./template";
 import AutoSaveBadge from "../_components/AutoSaveBadge";
 import StepNav from "../_components/StepNav";
 import type { SaveState } from "../_components/hooks/useAutoSave";
@@ -43,11 +44,19 @@ function toDesired(value: unknown): DesiredConditions {
   return { locations: [], roles: [], industries: [] };
 }
 
+export default function ResumeStep5Page() {
+  return (
+    <ResumeStep5Template>
+      <ResumeStep5PageContent />
+    </ResumeStep5Template>
+  );
+}
+
 function findLabel(options: TagOption[], value: string) {
   return options.find((option) => option.value === value)?.label ?? value;
 }
 
-export default function ResumeStep5Page() {
+function ResumeStep5PageContent() {
   const router = useRouter();
   const [resumeId, setResumeId] = useState<string | null>(null);
   const resumeIdRef = useRef<string | null>(null);
