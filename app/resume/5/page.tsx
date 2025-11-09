@@ -325,7 +325,7 @@ export default function ResumeStep5Page() {
   const loadErrorId = loadError ? "desired-load-error" : undefined;
 
   return (
-    <>
+    <div className="resume-step">
       <form aria-describedby={loadErrorId} onSubmit={handleSubmit} noValidate>
         <div style={{ marginBottom: "24px" }}>
           <h2 className="resume-page-title">希望条件</h2>
@@ -346,7 +346,7 @@ export default function ResumeStep5Page() {
           ) : null}
         </div>
 
-        <div className="resume-form" style={{ display: "grid", gap: "24px" }}>
+        <div style={{ display: "grid", gap: "24px" }}>
           <section className="desired-section">
             <header className="desired-section__header">
               <h2>希望勤務地</h2>
