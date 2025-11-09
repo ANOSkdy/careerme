@@ -9,10 +9,8 @@ import {
   useState,
   type ChangeEvent,
   type CSSProperties,
-  type KeyboardEvent,
 } from "react";
 
-import StepNav from "../_components/StepNav";
 import type { SaveState } from "../_components/hooks/useAutoSave";
 import { useAutoSave } from "../_components/hooks/useAutoSave";
 import {
@@ -94,7 +92,6 @@ export default function BasicInfoForm() {
   const [saveError, setSaveError] = useState<string | null>(null);
   const lastSavedSnapshotRef = useRef<string | null>(null);
   const ensureIdPromiseRef = useRef<Promise<string | null> | null>(null);
-  const genderButtonRefs = useRef<Array<HTMLButtonElement | null>>([]);
 
   useEffect(() => {
     resumeIdRef.current = resumeId;
@@ -268,38 +265,18 @@ export default function BasicInfoForm() {
       }));
     };
 
-  const handleGenderSelect = useCallback((value: BasicInfo["gender"]) => {
-    setForm((prev) => ({ ...prev, gender: value }));
-  }, []);
-
-  const handleGenderKeyDown = useCallback(
-    (event: KeyboardEvent<HTMLButtonElement>, currentIndex: number) => {
-      const { key } = event;
-      let nextIndex = currentIndex;
-      if (key === "ArrowRight" || key === "ArrowDown") {
-        event.preventDefault();
-        nextIndex = (currentIndex + 1) % genderOptions.length;
-      } else if (key === "ArrowLeft" || key === "ArrowUp") {
-        event.preventDefault();
-        nextIndex =
-          (currentIndex - 1 + genderOptions.length) % genderOptions.length;
-      } else {
-        return;
+  const handleGenderChange = useCallback(
+    (event: ChangeEvent<HTMLInputElement>) => {
+      const value = event.target.value as BasicInfo["gender"];
+      if (value === "male" || value === "female" || value === "none") {
+        setForm((prev) => ({ ...prev, gender: value }));
       }
-
-      const nextValue = genderOptions[nextIndex]?.value ?? "none";
-      handleGenderSelect(nextValue);
-      genderButtonRefs.current[nextIndex]?.focus();
     },
-    [handleGenderSelect]
-  );
-
-  const hasSelectedGender = genderOptions.some(
-    (candidate) => candidate.value === form.gender
+    []
   );
 
   return (
-    <form style={{ display: "grid", gap: "24px" }}>
+    <form style={{ display: "grid", gap: "24px" }} noValidate>
       <div>
         <h2 className="resume-page-title">基本情報</h2>
         <p style={{ color: "var(--color-secondary, #6b7280)", fontSize: "0.875rem" }}>
@@ -361,54 +338,27 @@ export default function BasicInfoForm() {
           <span style={{ display: "block", fontSize: "0.875rem", fontWeight: 600, color: "var(--color-text, #333333)" }}>
             性別
           </span>
-          <input type="hidden" name="gender" value={form.gender ?? ""} />
           <div
             role="radiogroup"
             aria-label="性別"
-            style={{ display: "flex", gap: "8px", marginTop: "8px" }}
+            className="gender-options"
           >
-            {genderOptions.map((option, index) => {
-              const active = form.gender === option.value;
-              const tabIndex = active || (!hasSelectedGender && index === 0) ? 0 : -1;
-              return (
-                <button
-                  key={option.value}
-                  ref={(element) => {
-                    genderButtonRefs.current[index] = element;
-                  }}
-                  type="button"
-                  role="radio"
-                  aria-checked={active}
-                  tabIndex={tabIndex}
-                  onClick={() => handleGenderSelect(option.value)}
-                  onKeyDown={(event) => handleGenderKeyDown(event, index)}
-                  style={{
-                    flex: 1,
-                    display: "inline-flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    gap: "6px",
-                    padding: "8px 16px",
-                    borderRadius: "9999px",
-                    border: active
-                      ? "2px solid var(--color-primary, #2563eb)"
-                      : "1px solid var(--color-border, #cccccc)",
-                    backgroundColor: active
-                      ? "rgba(37, 99, 235, 0.12)"
-                      : "#ffffff",
-                    color: active
-                      ? "var(--color-primary, #2563eb)"
-                      : "var(--color-text, #333333)",
-                    fontWeight: 600,
-                    cursor: "pointer",
-                    transition: "all 0.2s ease",
-                    textAlign: "center",
-                  }}
-                >
+            {genderOptions.map((option) => (
+              <div key={option.value} className="gender-option">
+                <input
+                  id={`gender-${option.value}`}
+                  type="radio"
+                  name="gender"
+                  value={option.value}
+                  checked={form.gender === option.value}
+                  onChange={handleGenderChange}
+                  className="gender-option__input"
+                />
+                <label htmlFor={`gender-${option.value}`} className="gender-option__label">
                   {option.label}
-                </button>
-              );
-            })}
+                </label>
+              </div>
+            ))}
           </div>
         </fieldset>
 
@@ -499,7 +449,11 @@ export default function BasicInfoForm() {
         )}
       </div>
 
-      <StepNav step={1} nextType="link" nextHref="/resume/2" />
+      <div>
+        <a href="/resume/2" className="link-button link-button--primary">
+          次へ
+        </a>
+      </div>
     </form>
   );
 }
