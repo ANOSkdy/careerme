@@ -322,16 +322,31 @@ export default function ResumeStep5Page() {
     []
   );
 
+  const loadErrorId = loadError ? "desired-load-error" : undefined;
+
   return (
-    <div className="resume-step">
-      <form onSubmit={handleSubmit} noValidate>
-        <h1 className="resume-step__title">希望条件</h1>
-        <p className="resume-step__description">希望する勤務地・職種・業界を選択してください。</p>
-        <div className="resume-step__status">
-          <AutoSaveBadge state={saveState} />
+    <>
+      <form aria-describedby={loadErrorId} onSubmit={handleSubmit} noValidate>
+        <div style={{ marginBottom: "24px" }}>
+          <h2 className="resume-page-title">希望条件</h2>
+          <p style={{ color: "var(--color-text-muted, #6b7280)", fontSize: "0.875rem" }}>
+            希望する勤務地・職種・業界を選択してください。
+          </p>
+          <p style={{ color: "var(--color-text-muted, #6b7280)", fontSize: "0.875rem", marginTop: "8px" }}>
+            入力内容は2秒後に自動保存されます。ページ移動時にも保存されます。
+          </p>
+          {loadError ? (
+            <p
+              id={loadErrorId}
+              role="alert"
+              style={{ marginTop: "8px", color: "#dc2626", fontSize: "0.875rem" }}
+            >
+              {loadError}
+            </p>
+          ) : null}
         </div>
-        {loadError ? <p className="form-error" role="alert">{loadError}</p> : null}
-        <div className="resume-form">
+
+        <div className="resume-form" style={{ display: "grid", gap: "24px" }}>
           <section className="desired-section">
             <header className="desired-section__header">
               <h2>希望勤務地</h2>
@@ -372,16 +387,19 @@ export default function ResumeStep5Page() {
               いずれかの項目を1つ以上選択してください。
             </p>
           ) : null}
-          <StepNav
-            step={5}
-            totalSteps={5}
-            prevHref="/resume/4"
-            nextHref="/cv/1"
-            nextType="submit"
-            nextDisabled={isLoading || !hasAnySelection || !validation.success}
-            nextLabel="次へ"
-          />
         </div>
+
+        <AutoSaveBadge state={saveState} />
+
+        <StepNav
+          step={5}
+          totalSteps={5}
+          prevHref="/resume/4"
+          nextHref="/cv/1"
+          nextType="submit"
+          nextDisabled={isLoading || !hasAnySelection || !validation.success}
+          nextLabel="次へ"
+        />
       </form>
 
       <Modal open={locationsOpen} onClose={() => setLocationsOpen(false)} title="希望勤務地">
