@@ -510,7 +510,7 @@ export default function EducationForm() {
           >
             <div style={{ display: "grid", gap: "8px" }}>
               <label style={{ fontWeight: 600 }}>
-                学校名 <span aria-hidden="true" style={{ color: "#ef4444" }}>*</span>
+                学校名
                 <input
                   value={item.schoolName}
                   onChange={handleItemChange(index, "schoolName")}
@@ -563,7 +563,7 @@ export default function EducationForm() {
 
             <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
               <label style={{ flex: 1, minWidth: "140px" }}>
-                入学年月 <span aria-hidden="true" style={{ color: "#ef4444" }}>*</span>
+                入学年月
                 <input
                   type="month"
                   value={item.start}
