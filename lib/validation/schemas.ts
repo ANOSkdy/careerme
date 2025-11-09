@@ -9,6 +9,11 @@ const digitPattern = /^[0-9]+$/u;
 const qaMessageMin = "10文字以上で入力してください";
 const qaMessageMax = "600文字以内で入力してください";
 
+export const SELF_PR_MIN_CHARS = 400;
+export const SELF_PR_MAX_CHARS = 800;
+export const SUMMARY_MIN_CHARS = 200;
+export const SUMMARY_MAX_CHARS = 400;
+
 const qaFieldSchema = z
   .string()
   .trim()
@@ -39,6 +44,18 @@ export const CvQaSchema = z.object({
 });
 
 export type CvQa = z.infer<typeof CvQaSchema>;
+
+export const SelfPrTextSchema = z
+  .string()
+  .trim()
+  .min(SELF_PR_MIN_CHARS, `自己PRは${SELF_PR_MIN_CHARS}文字以上で入力してください`)
+  .max(SELF_PR_MAX_CHARS, `自己PRは${SELF_PR_MAX_CHARS}文字以内で入力してください`);
+
+export const SummaryTextSchema = z
+  .string()
+  .trim()
+  .min(SUMMARY_MIN_CHARS, `職務要約は${SUMMARY_MIN_CHARS}文字以上で入力してください`)
+  .max(SUMMARY_MAX_CHARS, `職務要約は${SUMMARY_MAX_CHARS}文字以内で入力してください`);
 
 function createDobNumberSchema({
   min,

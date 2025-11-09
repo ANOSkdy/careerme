@@ -1,8 +1,5 @@
-import PRWizard from './PRWizard';
-
-export const dynamic = 'force-dynamic';
-export const revalidate = 0;
+import AiComposer from '../_components/AiComposer';
 
 export default function Page() {
-  return <PRWizard />;
+  return <AiComposer initialTab="selfpr" />;
 }
