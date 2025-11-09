@@ -2,7 +2,7 @@
 
 import type { ReactNode } from "react";
 
-export default function ResumeStep5Template({ children }: { children: ReactNode }) {
+export function ResumeStep5Template({ children }: { children: ReactNode }) {
   return (
     <div className="resume5-template">
       <div className="resume5-template__inner">{children}</div>
@@ -39,3 +39,5 @@ export default function ResumeStep5Template({ children }: { children: ReactNode 
     </div>
   );
 }
+
+export default ResumeStep5Template;
