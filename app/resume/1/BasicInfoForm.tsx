@@ -334,19 +334,22 @@ export default function BasicInfoForm() {
             性別
           </span>
           <input type="hidden" name="gender" value={form.gender ?? ""} />
-          <div style={{ display: "flex", gap: "8px", marginTop: "8px" }}>
+          <div
+            role="radiogroup"
+            aria-label="性別"
+            style={{ display: "flex", gap: "8px", marginTop: "8px" }}
+          >
             {genderOptions.map((option) => {
               const active = form.gender === option.value;
               return (
-                <button
+                <label
                   key={option.value}
-                  type="button"
-                  onClick={() => handleGenderSelect(option.value)}
-                  aria-pressed={active}
                   style={{
+                    flex: 1,
                     display: "inline-flex",
                     alignItems: "center",
                     justifyContent: "center",
+                    gap: "6px",
                     padding: "8px 16px",
                     borderRadius: "9999px",
                     border: active
@@ -361,10 +364,20 @@ export default function BasicInfoForm() {
                     fontWeight: 600,
                     cursor: "pointer",
                     transition: "all 0.2s ease",
+                    textAlign: "center",
+                    position: "relative",
                   }}
                 >
-                  {option.label}
-                </button>
+                  <input
+                    type="radio"
+                    name="gender-choice"
+                    value={option.value}
+                    checked={active}
+                    onChange={() => handleGenderSelect(option.value)}
+                    style={srOnlyStyle}
+                  />
+                  <span>{option.label}</span>
+                </label>
               );
             })}
           </div>
