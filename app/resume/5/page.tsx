@@ -1,7 +1,6 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import Template from "./template";
 import {
   useCallback,
   useEffect,
@@ -324,16 +323,15 @@ export default function ResumeStep5Page() {
   );
 
   return (
-    <Template>
-      <div className="resume-step">
-        <form onSubmit={handleSubmit} noValidate>
-          <h1 className="resume-step__title">希望条件</h1>
-          <p className="resume-step__description">希望する勤務地・職種・業界を選択してください。</p>
-          <div className="resume-step__status">
-            <AutoSaveBadge state={saveState} />
-          </div>
-          {loadError ? <p className="form-error" role="alert">{loadError}</p> : null}
-          <div className="resume-form">
+    <div className="resume-step">
+      <form onSubmit={handleSubmit} noValidate>
+        <h1 className="resume-step__title">希望条件</h1>
+        <p className="resume-step__description">希望する勤務地・職種・業界を選択してください。</p>
+        <div className="resume-step__status">
+          <AutoSaveBadge state={saveState} />
+        </div>
+        {loadError ? <p className="form-error" role="alert">{loadError}</p> : null}
+        <div className="resume-form">
           <section className="desired-section">
             <header className="desired-section__header">
               <h2>希望勤務地</h2>
@@ -462,8 +460,7 @@ export default function ResumeStep5Page() {
             </button>
           </div>
         </Modal>
-        </form>
-      </div>
-    </Template>
+      </form>
+    </div>
   );
 }
