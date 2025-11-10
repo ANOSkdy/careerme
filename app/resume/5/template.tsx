@@ -28,7 +28,8 @@ export default function Template({ children }: TemplateProps) {
     const ensureTargets = () => {
       if (!form) return;
       main = form.closest<HTMLElement>("main") ?? (document.querySelector("main") as HTMLElement | null);
-      resumeStep = form.closest<HTMLElement>(".resume-step") ?? form.parentElement;
+      resumeStep =
+        form.closest<HTMLElement>(".resume-step") ?? (form.parentElement as HTMLElement | null);
     };
 
     const removeGuards = () => {
@@ -94,12 +95,22 @@ export default function Template({ children }: TemplateProps) {
       }
     };
 
-    const applyEnhancements = () => {
-      if (!form) return;
+    const applyInitialEnhancements = () => {
+      if (!form || form.dataset.r5Enhanced === "true") return;
       main?.classList.add("r5-enhanced-main");
       resumeStep?.classList.add("r5-enhanced-step");
       form.classList.add("r5-enhanced-form");
       removeGuards();
+      hideNativeNext();
+      ensureHost();
+      form.dataset.r5Enhanced = "true";
+    };
+
+    const maintainEnhancements = () => {
+      if (!form) return;
+      main?.classList.add("r5-enhanced-main");
+      resumeStep?.classList.add("r5-enhanced-step");
+      form.classList.add("r5-enhanced-form");
       hideNativeNext();
       ensureHost();
     };
@@ -113,15 +124,15 @@ export default function Template({ children }: TemplateProps) {
       }
 
       ensureTargets();
-      if (form.dataset.r5Enhanced !== "true") {
-        form.dataset.r5Enhanced = "true";
+      if (form.dataset.r5Enhanced === "true") {
+        maintainEnhancements();
+      } else {
+        applyInitialEnhancements();
       }
-
-      applyEnhancements();
 
       observerRef.current?.disconnect();
       observerRef.current = new MutationObserver(() => {
-        applyEnhancements();
+        maintainEnhancements();
       });
       observerRef.current.observe(form, {
         subtree: true,
