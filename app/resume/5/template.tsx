@@ -10,21 +10,29 @@ type TemplateProps = {
 export default function Template({ children }: TemplateProps) {
   const [nextHost, setNextHost] = useState<HTMLElement | null>(null);
   const observerRef = useRef<MutationObserver | null>(null);
-  const intervalRef = useRef<number | null>(null);
   const hostRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
-    const locateForm = () =>
+    let cancelled = false;
+    let rafId: number | null = null;
+
+    let form: HTMLFormElement | null = null;
+    let main: HTMLElement | null = null;
+    let resumeStep: HTMLElement | null = null;
+
+    const findForm = (): HTMLFormElement | null =>
       document.querySelector<HTMLFormElement>(".resume-step form") ??
-      document.querySelector<HTMLFormElement>("main form");
+      document.querySelector<HTMLFormElement>("main form") ??
+      document.querySelector<HTMLFormElement>("form");
 
-    const form = locateForm();
-    if (!form) return;
-
-    const main = form.closest<HTMLElement>("main");
-    const resumeStep = form.closest<HTMLElement>(".resume-step") ?? form.parentElement;
+    const ensureTargets = () => {
+      if (!form) return;
+      main = form.closest<HTMLElement>("main") ?? (document.querySelector("main") as HTMLElement | null);
+      resumeStep = form.closest<HTMLElement>(".resume-step") ?? form.parentElement;
+    };
 
     const removeGuards = () => {
+      if (!form) return;
       form.setAttribute("noValidate", "true");
       form.querySelectorAll("[required]").forEach((el) => el.removeAttribute("required"));
       form
@@ -55,7 +63,7 @@ export default function Template({ children }: TemplateProps) {
     };
 
     const hideNativeNext = () => {
-      const controls = Array.from(form.querySelectorAll<HTMLElement>("a, button"));
+      const controls = Array.from(document.querySelectorAll<HTMLElement>("a, button"));
       controls
         .filter((el) => {
           if (el.dataset.r5Next === "true") return false;
@@ -68,21 +76,26 @@ export default function Template({ children }: TemplateProps) {
     };
 
     const ensureHost = () => {
+      if (!form) return;
       if (hostRef.current && !hostRef.current.isConnected) {
         hostRef.current = null;
         setNextHost(null);
       }
       if (!hostRef.current) {
-        const host = document.createElement("div");
-        host.id = "resume-step5-next";
-        host.className = "r5-next-host";
-        form.appendChild(host);
+        const existing = form.querySelector<HTMLElement>("#resume-step5-next");
+        const host = existing ?? document.createElement("div");
+        if (!existing) {
+          host.id = "resume-step5-next";
+          host.className = "r5-next-host";
+          form.appendChild(host);
+        }
         hostRef.current = host;
         setNextHost(host);
       }
     };
 
     const applyEnhancements = () => {
+      if (!form) return;
       main?.classList.add("r5-enhanced-main");
       resumeStep?.classList.add("r5-enhanced-step");
       form.classList.add("r5-enhanced-form");
@@ -91,27 +104,41 @@ export default function Template({ children }: TemplateProps) {
       ensureHost();
     };
 
-    applyEnhancements();
+    const boot = () => {
+      if (cancelled) return;
+      form = findForm();
+      if (!form) {
+        rafId = window.requestAnimationFrame(boot);
+        return;
+      }
 
-    observerRef.current?.disconnect();
-    observerRef.current = new MutationObserver(() => {
+      ensureTargets();
+      if (form.dataset.r5Enhanced !== "true") {
+        form.dataset.r5Enhanced = "true";
+      }
+
       applyEnhancements();
-    });
-    observerRef.current.observe(form, {
-      subtree: true,
-      childList: true,
-      attributes: true,
-    });
 
-    intervalRef.current = window.setInterval(applyEnhancements, 750);
+      observerRef.current?.disconnect();
+      observerRef.current = new MutationObserver(() => {
+        applyEnhancements();
+      });
+      observerRef.current.observe(form, {
+        subtree: true,
+        childList: true,
+        attributes: true,
+      });
+    };
+
+    boot();
 
     return () => {
+      cancelled = true;
+      if (rafId !== null) {
+        window.cancelAnimationFrame(rafId);
+      }
       observerRef.current?.disconnect();
       observerRef.current = null;
-      if (intervalRef.current) {
-        window.clearInterval(intervalRef.current);
-        intervalRef.current = null;
-      }
       if (hostRef.current?.parentElement) {
         hostRef.current.parentElement.removeChild(hostRef.current);
       }
