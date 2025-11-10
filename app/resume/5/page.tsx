@@ -322,6 +322,7 @@ export default function ResumeStep5Page() {
     []
   );
 
+  // Route-level template handles layout/pill enhancements automatically.
   return (
     <div className="resume-step">
       <form onSubmit={handleSubmit} noValidate>
