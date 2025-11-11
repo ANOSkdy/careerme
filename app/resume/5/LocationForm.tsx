@@ -8,7 +8,7 @@ import {
   useRef,
   useState,
 } from "react";
-import type { ChangeEvent, FormEvent } from "react";
+import type { ChangeEvent, FormEvent, MouseEvent } from "react";
 
 import type { ZodError } from "zod";
 
@@ -451,42 +451,54 @@ export default function LocationForm() {
     }
   }, [schema, touched, value, persist]);
 
-  const handleSubmit = useCallback(
-    async (event: FormEvent<HTMLFormElement>) => {
-      event.preventDefault();
-      setSubmitError(null);
-      setTouched(true);
-      const result = schema.safeParse({ preferredLocation: value });
-      if (!result.success) {
-        setFieldError(extractValidationMessage(result.error));
-        return;
-      }
-      if (!resumeId) {
-        setSubmitError("保存に必要なIDの取得に失敗しました。ページを再読み込みしてください。");
-        return;
-      }
-      setFieldError(null);
-      setIsSubmitting(true);
-      try {
-        const [locationSaved] = await Promise.all([
-          persist(result.data.preferredLocation, { silent: true }),
-          saveDesired(desiredPayload),
-        ]);
-        if (!locationSaved) {
-          setIsSubmitting(false);
-          setSubmitError("保存に失敗しました。時間をおいて再度お試しください。");
-          return;
-        }
-      } catch (error) {
-        console.error("Failed to save desired conditions", error);
+  const submit = useCallback(async () => {
+    setSubmitError(null);
+    setTouched(true);
+    const result = schema.safeParse({ preferredLocation: value });
+    if (!result.success) {
+      setFieldError(extractValidationMessage(result.error));
+      return;
+    }
+    if (!resumeId) {
+      setSubmitError("保存に必要なIDの取得に失敗しました。ページを再読み込みしてください。");
+      return;
+    }
+    setFieldError(null);
+    setIsSubmitting(true);
+    try {
+      const [locationSaved] = await Promise.all([
+        persist(result.data.preferredLocation, { silent: true }),
+        saveDesired(desiredPayload),
+      ]);
+      if (!locationSaved) {
         setIsSubmitting(false);
         setSubmitError("保存に失敗しました。時間をおいて再度お試しください。");
         return;
       }
+    } catch (error) {
+      console.error("Failed to save desired conditions", error);
       setIsSubmitting(false);
-      router.push("/cv/2");
+      setSubmitError("保存に失敗しました。時間をおいて再度お試しください。");
+      return;
+    }
+    setIsSubmitting(false);
+    router.push("/cv/2");
+  }, [schema, value, resumeId, persist, router, saveDesired, desiredPayload]);
+
+  const handleSubmit = useCallback(
+    (event: FormEvent<HTMLFormElement>) => {
+      event.preventDefault();
+      void submit();
     },
-    [schema, value, resumeId, persist, router, saveDesired, desiredPayload]
+    [submit]
+  );
+
+  const handleNextClick = useCallback(
+    async (event: MouseEvent<HTMLAnchorElement | HTMLButtonElement>) => {
+      event.preventDefault();
+      await submit();
+    },
+    [submit]
   );
 
   const nextDisabled = isSubmitting;
@@ -629,9 +641,11 @@ export default function LocationForm() {
 
       <StepNav
         step={5}
-        nextType="submit"
+        nextType="link"
+        nextHref="/cv/2"
         nextDisabled={nextDisabled}
         nextLabel={isSubmitting ? "保存中..." : "次へ"}
+        onNextClick={handleNextClick}
       />
     </form>
   );
