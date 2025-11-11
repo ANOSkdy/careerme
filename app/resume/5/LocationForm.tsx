@@ -503,27 +503,24 @@ export default function LocationForm() {
     .filter(Boolean)
     .join(" ")
     .trim() || undefined;
-  const locationSelectClass = `resume-form__select${
-    touched && fieldError ? " resume-form__control--error" : ""
-  }`;
 
   return (
     <form
       onSubmit={handleSubmit}
-      className="resume-form"
+      style={{ display: "grid", gap: "24px" }}
       aria-describedby={formDescriptionIds}
       noValidate
     >
-      <header className="resume-form__header">
+      <div style={{ display: "grid", gap: "8px" }}>
         <h2 className="resume-page-title">希望勤務地</h2>
-        <p className="resume-form__description">
+        <p style={{ color: "var(--color-text-muted, #6b7280)", fontSize: "0.875rem" }}>
           希望する勤務地を選択してください。選択後は自動的に保存されます。
         </p>
         {loadError && (
           <p
             id={loadErrorId}
             role="alert"
-            className="resume-form__message resume-form__message--error"
+            style={{ color: "#dc2626", fontSize: "0.875rem" }}
           >
             {loadError}
           </p>
@@ -532,7 +529,7 @@ export default function LocationForm() {
           <p
             id={lookupErrorId}
             role="alert"
-            className="resume-form__message resume-form__message--warning"
+            style={{ color: "#b45309", fontSize: "0.875rem" }}
           >
             {lookupError}
           </p>
@@ -541,17 +538,20 @@ export default function LocationForm() {
           <p
             id={submitErrorId}
             role="alert"
-            className="resume-form__message resume-form__message--error"
+            style={{ color: "#dc2626", fontSize: "0.875rem" }}
           >
             {submitError}
           </p>
         )}
-      </header>
+      </div>
 
-      <div className="resume-form__panel">
-        <div className="resume-form__field">
-          <label htmlFor="preferredLocation" className="resume-form__label">
-            希望勤務地 <span className="resume-form__required" aria-hidden="true">*</span>
+      <div style={{ display: "grid", gap: "24px" }}>
+        <div style={{ display: "grid", gap: "8px" }}>
+          <label
+            htmlFor="preferredLocation"
+            style={{ fontWeight: 600 }}
+          >
+            希望勤務地 <span aria-hidden="true" style={{ color: "#ef4444" }}>*</span>
           </label>
           <select
             id="preferredLocation"
@@ -562,7 +562,14 @@ export default function LocationForm() {
             aria-invalid={touched && Boolean(fieldError)}
             aria-describedby={describedBy}
             required
-            className={locationSelectClass}
+            style={{
+              width: "100%",
+              borderRadius: "8px",
+              border: "1px solid var(--color-border, #d1d5db)",
+              padding: "10px 12px",
+              backgroundColor: "#fff",
+              fontSize: "1rem",
+            }}
           >
             <option value="" disabled>
               選択してください
@@ -577,13 +584,16 @@ export default function LocationForm() {
             <p
               id={fieldErrorId}
               role="alert"
-              className="resume-form__message resume-form__message--error"
+              style={{ color: "#dc2626", fontSize: "0.875rem" }}
             >
               {fieldError}
             </p>
           )}
           {!fieldError && saveStatus !== "idle" && (
-            <p className="resume-form__helper" aria-live="polite">
+            <p
+              style={{ fontSize: "0.75rem", color: "var(--color-secondary, #6b7280)" }}
+              aria-live="polite"
+            >
               {saveStatus === "saving" && "自動保存中..."}
               {saveStatus === "saved" && "保存しました"}
               {saveStatus === "error" && "自動保存に失敗しました。"}
@@ -591,9 +601,11 @@ export default function LocationForm() {
           )}
         </div>
 
-        <div className="resume-form__section">
-          <h3 className="resume-form__subtitle">希望職種</h3>
-          <p className="resume-form__helper">希望する職種をタグで入力してください。</p>
+        <div style={{ display: "grid", gap: "8px" }}>
+          <h3 style={{ margin: 0, fontSize: "1rem", fontWeight: 600 }}>希望職種</h3>
+          <p style={{ fontSize: "0.8125rem", color: "var(--color-text-muted, #6b7280)" }}>
+            希望する職種をタグで入力してください。
+          </p>
           <TagInput
             id="desired-roles"
             label="希望職種"
@@ -603,9 +615,11 @@ export default function LocationForm() {
           />
         </div>
 
-        <div className="resume-form__section">
-          <h3 className="resume-form__subtitle">希望業界</h3>
-          <p className="resume-form__helper">関心のある業界をタグで入力してください。</p>
+        <div style={{ display: "grid", gap: "8px" }}>
+          <h3 style={{ margin: 0, fontSize: "1rem", fontWeight: 600 }}>希望業界</h3>
+          <p style={{ fontSize: "0.8125rem", color: "var(--color-text-muted, #6b7280)" }}>
+            関心のある業界をタグで入力してください。
+          </p>
           <TagInput
             id="desired-industries"
             label="希望業界"

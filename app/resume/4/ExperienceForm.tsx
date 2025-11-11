@@ -566,20 +566,20 @@ export default function ExperienceForm() {
   return (
     <form
       onSubmit={handleSubmit}
-      className="resume-form"
+      style={{ display: "grid", gap: "24px" }}
       aria-describedby={formDescriptionIds}
       noValidate
     >
-      <header className="resume-form__header">
+      <header style={{ display: "grid", gap: "8px" }}>
         <h2 className="resume-page-title">職歴</h2>
-        <p className="resume-form__description">
+        <p style={{ color: "var(--color-text-muted, #6b7280)", fontSize: "0.875rem" }}>
           これまでの職歴を入力してください。現在の職務に在籍中の場合は「在籍中」にチェックを入れてください。
         </p>
         {loadError && (
           <p
             id={loadErrorId}
             role="alert"
-            className="resume-form__message resume-form__message--error"
+            style={{ color: "#dc2626", fontSize: "0.875rem" }}
           >
             {loadError}
           </p>
@@ -590,13 +590,13 @@ export default function ExperienceForm() {
         <p
           id={listErrorId}
           role="alert"
-          className="resume-form__message resume-form__message--error"
+          style={{ color: "#dc2626", fontSize: "0.875rem" }}
         >
           {listError}
         </p>
       )}
 
-      <div className="resume-form__section">
+      <div style={{ display: "grid", gap: "24px" }}>
         {experiences.map((row, index) => {
           const fieldId = `experience-${index}`;
           const present = Boolean(row.present);
@@ -609,27 +609,25 @@ export default function ExperienceForm() {
           const startError = fieldErrors.start;
           const endError = fieldErrors.end;
 
-          const companyInputClass = `resume-form__input${
-            companyNameError ? " resume-form__control--error" : ""
-          }`;
-          const jobTitleInputClass = `resume-form__input${
-            jobTitleError ? " resume-form__control--error" : ""
-          }`;
-          const startInputClass = `resume-form__input${
-            startError ? " resume-form__control--error" : ""
-          }`;
-          const endInputClass = `resume-form__input${
-            endError ? " resume-form__control--error" : ""
-          }`;
-
           return (
-            <fieldset key={fieldId} className="resume-form__fieldset">
-              <legend className="resume-form__legend">職歴 {index + 1}</legend>
+            <div key={fieldId} style={{ display: "grid", gap: "16px" }}>
+              <p style={{ margin: 0, fontSize: "1rem", fontWeight: 600 }}>
+                職歴 {index + 1}
+              </p>
 
-              <div className="resume-form__field-grid">
-                <div className="resume-form__field">
-                  <label htmlFor={`${fieldId}-company`} className="resume-form__label">
-                    企業名 <span className="resume-form__required">*</span>
+              <div
+                style={{
+                  display: "grid",
+                  gap: "16px",
+                  gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+                }}
+              >
+                <div>
+                  <label
+                    htmlFor={`${fieldId}-company`}
+                    style={{ display: "block", fontWeight: 600, marginBottom: "8px" }}
+                  >
+                    企業名 <span aria-hidden="true" style={{ color: "#ef4444" }}>*</span>
                   </label>
                   <input
                     id={`${fieldId}-company`}
@@ -644,7 +642,14 @@ export default function ExperienceForm() {
                     }
                     onBlur={() => setExperienceTouched(true)}
                     required
-                    className={companyInputClass}
+                    style={{
+                      width: "100%",
+                      borderRadius: "8px",
+                      border: "1px solid var(--color-border, #d1d5db)",
+                      padding: "10px 12px",
+                      fontSize: "1rem",
+                      backgroundColor: "#fff",
+                    }}
                     aria-invalid={Boolean(companyNameError)}
                     aria-describedby={
                       companyNameError ? `${fieldId}-company-error` : undefined
@@ -654,16 +659,19 @@ export default function ExperienceForm() {
                     <p
                       id={`${fieldId}-company-error`}
                       role="alert"
-                      className="resume-form__message resume-form__message--error"
+                      style={{ marginTop: "4px", color: "#dc2626", fontSize: "0.875rem" }}
                     >
                       {companyNameError}
                     </p>
                   )}
                 </div>
 
-                <div className="resume-form__field">
-                  <label htmlFor={`${fieldId}-title`} className="resume-form__label">
-                    職種 / 役職 <span className="resume-form__required">*</span>
+                <div>
+                  <label
+                    htmlFor={`${fieldId}-title`}
+                    style={{ display: "block", fontWeight: 600, marginBottom: "8px" }}
+                  >
+                    職種 / 役職 <span aria-hidden="true" style={{ color: "#ef4444" }}>*</span>
                   </label>
                   <input
                     id={`${fieldId}-title`}
@@ -678,7 +686,14 @@ export default function ExperienceForm() {
                     }
                     onBlur={() => setExperienceTouched(true)}
                     required
-                    className={jobTitleInputClass}
+                    style={{
+                      width: "100%",
+                      borderRadius: "8px",
+                      border: "1px solid var(--color-border, #d1d5db)",
+                      padding: "10px 12px",
+                      fontSize: "1rem",
+                      backgroundColor: "#fff",
+                    }}
                     aria-invalid={Boolean(jobTitleError)}
                     aria-describedby={
                       jobTitleError ? `${fieldId}-title-error` : undefined
@@ -688,16 +703,19 @@ export default function ExperienceForm() {
                     <p
                       id={`${fieldId}-title-error`}
                       role="alert"
-                      className="resume-form__message resume-form__message--error"
+                      style={{ marginTop: "4px", color: "#dc2626", fontSize: "0.875rem" }}
                     >
                       {jobTitleError}
                     </p>
                   )}
                 </div>
 
-                <div className="resume-form__field">
-                  <label htmlFor={`${fieldId}-start`} className="resume-form__label">
-                    開始年月 <span className="resume-form__required">*</span>
+                <div>
+                  <label
+                    htmlFor={`${fieldId}-start`}
+                    style={{ display: "block", fontWeight: 600, marginBottom: "8px" }}
+                  >
+                    開始年月 <span aria-hidden="true" style={{ color: "#ef4444" }}>*</span>
                   </label>
                   <input
                     id={`${fieldId}-start`}
@@ -712,7 +730,14 @@ export default function ExperienceForm() {
                     }
                     onBlur={() => setExperienceTouched(true)}
                     required
-                    className={startInputClass}
+                    style={{
+                      width: "100%",
+                      borderRadius: "8px",
+                      border: "1px solid var(--color-border, #d1d5db)",
+                      padding: "10px 12px",
+                      fontSize: "1rem",
+                      backgroundColor: "#fff",
+                    }}
                     aria-invalid={Boolean(startError)}
                     aria-describedby={startError ? `${fieldId}-start-error` : undefined}
                   />
@@ -720,15 +745,18 @@ export default function ExperienceForm() {
                     <p
                       id={`${fieldId}-start-error`}
                       role="alert"
-                      className="resume-form__message resume-form__message--error"
+                      style={{ marginTop: "4px", color: "#dc2626", fontSize: "0.875rem" }}
                     >
                       {startError}
                     </p>
                   )}
                 </div>
 
-                <div className="resume-form__field">
-                  <label htmlFor={`${fieldId}-end`} className="resume-form__label">
+                <div>
+                  <label
+                    htmlFor={`${fieldId}-end`}
+                    style={{ display: "block", fontWeight: 600, marginBottom: "8px" }}
+                  >
                     終了年月
                   </label>
                   <input
@@ -744,7 +772,14 @@ export default function ExperienceForm() {
                     }
                     onBlur={() => setExperienceTouched(true)}
                     disabled={present}
-                    className={endInputClass}
+                    style={{
+                      width: "100%",
+                      borderRadius: "8px",
+                      border: "1px solid var(--color-border, #d1d5db)",
+                      padding: "10px 12px",
+                      fontSize: "1rem",
+                      backgroundColor: present ? "#f9fafb" : "#fff",
+                    }}
                     aria-invalid={Boolean(endError)}
                     aria-describedby={endError ? `${fieldId}-end-error` : undefined}
                   />
@@ -752,7 +787,7 @@ export default function ExperienceForm() {
                     <p
                       id={`${fieldId}-end-error`}
                       role="alert"
-                      className="resume-form__message resume-form__message--error"
+                      style={{ marginTop: "4px", color: "#dc2626", fontSize: "0.875rem" }}
                     >
                       {endError}
                     </p>
@@ -760,7 +795,14 @@ export default function ExperienceForm() {
                 </div>
               </div>
 
-              <div className="resume-form__checkbox-row">
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "8px",
+                  fontSize: "0.875rem",
+                }}
+              >
                 <input
                   id={`${fieldId}-present`}
                   type="checkbox"
@@ -773,8 +815,11 @@ export default function ExperienceForm() {
                 <label htmlFor={`${fieldId}-present`}>在籍中</label>
               </div>
 
-              <div className="resume-form__field">
-                <label htmlFor={`${fieldId}-description`} className="resume-form__label">
+              <div style={{ display: "grid", gap: "8px" }}>
+                <label
+                  htmlFor={`${fieldId}-description`}
+                  style={{ fontWeight: 600 }}
+                >
                   業務内容（任意）
                 </label>
                 <textarea
@@ -789,41 +834,73 @@ export default function ExperienceForm() {
                   }
                   onBlur={() => setExperienceTouched(true)}
                   rows={4}
-                  className="resume-form__textarea"
+                  style={{
+                    width: "100%",
+                    borderRadius: "8px",
+                    border: "1px solid var(--color-border, #d1d5db)",
+                    padding: "10px 12px",
+                    fontSize: "1rem",
+                    backgroundColor: "#fff",
+                    resize: "vertical",
+                  }}
                 />
               </div>
 
-              <div className="resume-form__actions">
+              <div>
                 <button
                   type="button"
                   onClick={() => handleRemoveRow(index)}
-                  className="resume-form__link-button"
+                  style={{
+                    appearance: "none",
+                    border: "none",
+                    background: "transparent",
+                    color: "var(--color-primary, #2563eb)",
+                    cursor: "pointer",
+                    padding: 0,
+                    fontSize: "0.875rem",
+                  }}
                   aria-label={`職歴 ${index + 1} を削除`}
                 >
                   職歴を削除
                 </button>
               </div>
-            </fieldset>
+            </div>
           );
         })}
       </div>
 
       <div>
-        <button type="button" onClick={handleAddRow} className="resume-form__add-button">
-          ＋ 職歴を追加
+        <button
+          type="button"
+          onClick={handleAddRow}
+          style={{
+            appearance: "none",
+            border: "1px solid var(--color-border, #d1d5db)",
+            background: "#ffffff",
+            color: "#111827",
+            padding: "8px 16px",
+            borderRadius: "8px",
+            fontSize: "0.875rem",
+            cursor: "pointer",
+          }}
+        >
+          職歴を追加
         </button>
       </div>
 
       <AutoSaveBadge state={experienceSaveState} />
 
-      <section className="resume-form__section">
-        <h3 className="resume-form__subtitle">資格</h3>
-        <p className="resume-form__helper">
+      <section style={{ display: "grid", gap: "12px" }}>
+        <h3 style={{ margin: 0, fontSize: "1rem", fontWeight: 600 }}>資格</h3>
+        <p style={{ fontSize: "0.875rem", color: "var(--color-text-muted, #6b7280)" }}>
           取得済みの資格を選択してください。複数選択できます。
         </p>
 
-        <div className="resume-form__section">
-          <label htmlFor="resume-certifications" className="resume-form__label">
+        <div style={{ display: "grid", gap: "8px" }}>
+          <label
+            htmlFor="resume-certifications"
+            style={{ fontWeight: 600 }}
+          >
             資格一覧
           </label>
           <select
@@ -832,7 +909,14 @@ export default function ExperienceForm() {
             value={certifications}
             onChange={handleCertificationChange}
             onBlur={() => setCertificationTouched(true)}
-            className="resume-form__select resume-form__select--multi"
+            style={{
+              minHeight: "160px",
+              borderRadius: "8px",
+              border: "1px solid var(--color-border, #d1d5db)",
+              padding: "10px",
+              fontSize: "1rem",
+              backgroundColor: "#fff",
+            }}
           >
             {certificationOptions.map((option) => (
               <option key={option.value} value={option.value}>
@@ -842,27 +926,42 @@ export default function ExperienceForm() {
           </select>
 
           {Array.isArray(certifications) && certifications.length > 0 && (
-            <div className="resume-form__chip-list">
+            <ul
+              style={{
+                margin: "8px 0 0",
+                paddingLeft: "20px",
+                fontSize: "0.875rem",
+                color: "#374151",
+              }}
+            >
               {certifications.map((value) => {
                 const option = certificationOptions.find(
                   (item) => item.value === value
                 );
                 const label = option?.label ?? value;
                 return (
-                  <span key={value} className="resume-form__chip">
-                    {label}
+                  <li key={value} style={{ marginBottom: "4px" }}>
+                    <span>{label}</span>{" "}
                     <button
                       type="button"
                       onClick={() => handleRemoveCertification(value)}
                       aria-label={`${label} を削除`}
-                      className="resume-form__chip-remove"
+                      style={{
+                        appearance: "none",
+                        border: "none",
+                        background: "transparent",
+                        color: "var(--color-primary, #2563eb)",
+                        cursor: "pointer",
+                        padding: 0,
+                        fontSize: "0.8125rem",
+                      }}
                     >
                       ×
                     </button>
-                  </span>
+                  </li>
                 );
               })}
-            </div>
+            </ul>
           )}
         </div>
 
