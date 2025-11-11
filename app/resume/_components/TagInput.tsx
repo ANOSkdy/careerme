@@ -63,51 +63,18 @@ export default function TagInput({
   }, [addTag, draft]);
 
   return (
-    <div>
-      <label
-        htmlFor={id}
-        style={{ display: "block", fontSize: "0.875rem", fontWeight: 500, marginBottom: "4px" }}
-      >
+    <div className="resume-tag-input">
+      <label htmlFor={id} className="resume-form__label">
         {label}
       </label>
-      <div
-        style={{
-          display: "flex",
-          flexWrap: "wrap",
-          gap: "8px",
-          border: "1px solid #d1d5db",
-          borderRadius: "12px",
-          padding: "8px 12px",
-          backgroundColor: "#ffffff",
-        }}
-      >
+      <div className="resume-tag-input__control">
         {value.map((tag) => (
-          <span
-            key={tag}
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: "4px",
-              padding: "4px 8px",
-              borderRadius: "9999px",
-              backgroundColor: "#eff6ff",
-              color: "#1d4ed8",
-              fontSize: "0.75rem",
-            }}
-          >
+          <span key={tag} className="resume-form__chip">
             {tag}
             <button
               type="button"
               onClick={() => removeTag(tag)}
-              style={{
-                appearance: "none",
-                background: "transparent",
-                border: "none",
-                color: "#2563eb",
-                cursor: "pointer",
-                fontSize: "0.75rem",
-                lineHeight: 1,
-              }}
+              className="resume-form__chip-remove"
               aria-label={`${tag} を削除`}
             >
               ×
@@ -122,19 +89,11 @@ export default function TagInput({
           onKeyDown={handleKeyDown}
           onBlur={handleBlur}
           placeholder={placeholder ?? hint}
-          style={{
-            flex: 1,
-            minWidth: "120px",
-            border: "none",
-            outline: "none",
-            fontSize: "0.875rem",
-            backgroundColor: "transparent",
-            padding: "4px 0",
-          }}
+          className="resume-tag-input__input"
           aria-describedby={`${id}-hint`}
         />
       </div>
-      <p id={`${id}-hint`} style={{ marginTop: "4px", fontSize: "0.75rem", color: "#6b7280" }}>
+      <p id={`${id}-hint`} className="resume-form__helper resume-tag-input__hint">
         {hint}
       </p>
     </div>
