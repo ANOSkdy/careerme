@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import type { MouseEvent } from "react";
 
 type StepNavProps = {
@@ -24,6 +25,7 @@ export default function StepNav({
   nextType = "link",
   onNextClick,
 }: StepNavProps) {
+  const router = useRouter();
   const computedPrevHref = prevHref ?? (step === 1 ? null : `/resume/${step - 1}`);
   const computedNextHref =
     nextType === "submit"
@@ -38,13 +40,55 @@ export default function StepNav({
     event.preventDefault();
   };
 
-  const handleNextLinkClick = (event: MouseEvent<HTMLAnchorElement>) => {
+  const handleNextLinkClick = async (event: MouseEvent<HTMLAnchorElement>) => {
     if (nextLinkDisabled) {
       handleDisabledClick(event);
       return;
     }
-    if (onNextClick) {
-      onNextClick(event);
+
+    if (!onNextClick) {
+      return;
+    }
+
+    if (
+      event.defaultPrevented ||
+      event.button !== 0 ||
+      event.metaKey ||
+      event.altKey ||
+      event.ctrlKey ||
+      event.shiftKey
+    ) {
+      return;
+    }
+
+    const nextHref = computedNextHref;
+
+    if (!nextHref) {
+      event.preventDefault();
+      return;
+    }
+
+    let shouldNavigate = true;
+    const proxyEvent = Object.create(event, {
+      preventDefault: {
+        value: () => {
+          shouldNavigate = false;
+          event.preventDefault();
+        },
+      },
+    }) as MouseEvent<HTMLAnchorElement | HTMLButtonElement>;
+
+    event.preventDefault();
+
+    try {
+      await onNextClick(proxyEvent);
+    } catch (error) {
+      shouldNavigate = false;
+      throw error;
+    } finally {
+      if (shouldNavigate) {
+        router.push(nextHref);
+      }
     }
   };
 
