@@ -530,8 +530,7 @@ export default function ExperienceForm() {
     });
   };
 
-  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
+  const proceedToNext = useCallback(async () => {
     setExperienceTouched(true);
     setCertificationTouched(true);
     const parsed = FormSchema.safeParse({
@@ -554,7 +553,24 @@ export default function ExperienceForm() {
     } finally {
       setIsSubmitting(false);
     }
-  };
+  }, [
+    certifications,
+    experiences,
+    resumeId,
+    router,
+    saveExperiences,
+    setCertificationTouched,
+    setExperienceTouched,
+    setIsSubmitting,
+  ]);
+
+  const handleSubmit = useCallback(
+    (event: FormEvent<HTMLFormElement>) => {
+      event.preventDefault();
+      void proceedToNext();
+    },
+    [proceedToNext]
+  );
 
   const isNextDisabled = !validation.isValid || isSubmitting;
   return (
@@ -644,7 +660,7 @@ export default function ExperienceForm() {
                     htmlFor={`${fieldId}-company`}
                     style={{ display: "block", fontSize: "0.875rem", fontWeight: 600 }}
                   >
-                    企業名 <span style={{ color: "#ef4444" }}>*</span>
+                    企業名
                   </label>
                   <input
                     id={`${fieldId}-company`}
@@ -687,7 +703,7 @@ export default function ExperienceForm() {
                     htmlFor={`${fieldId}-title`}
                     style={{ display: "block", fontSize: "0.875rem", fontWeight: 600 }}
                   >
-                    職種 / 役職 <span style={{ color: "#ef4444" }}>*</span>
+                    職種 / 役職
                   </label>
                   <input
                     id={`${fieldId}-title`}
@@ -730,7 +746,7 @@ export default function ExperienceForm() {
                     htmlFor={`${fieldId}-start`}
                     style={{ display: "block", fontSize: "0.875rem", fontWeight: 600 }}
                   >
-                    開始年月 <span style={{ color: "#ef4444" }}>*</span>
+                    開始年月
                   </label>
                   <input
                     id={`${fieldId}-start`}
@@ -988,7 +1004,13 @@ export default function ExperienceForm() {
         <AutoSaveBadge state={certificationSaveState} />
       </section>
 
-      <StepNav step={4} nextType="submit" nextDisabled={isNextDisabled} />
+      <StepNav
+        step={4}
+        nextType="link"
+        nextHref="/resume/5"
+        nextDisabled={isNextDisabled}
+        onNext={proceedToNext}
+      />
     </form>
   );
 }

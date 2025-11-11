@@ -11,6 +11,7 @@ type StepNavProps = {
   prevHref?: string | null;
   nextHref?: string | null;
   nextType?: "link" | "submit";
+  onNext?: () => void | Promise<void>;
 };
 
 export default function StepNav({
@@ -21,6 +22,7 @@ export default function StepNav({
   prevHref,
   nextHref,
   nextType = "link",
+  onNext,
 }: StepNavProps) {
   const computedPrevHref = prevHref ?? (step === 1 ? null : `/resume/${step - 1}`);
   const computedNextHref =
@@ -55,7 +57,26 @@ export default function StepNav({
           href={computedNextHref ?? "#"}
           aria-disabled={nextLinkDisabled}
           tabIndex={nextLinkDisabled ? -1 : undefined}
-          onClick={nextLinkDisabled ? handleDisabledClick : undefined}
+          onClick={(event) => {
+            if (nextLinkDisabled) {
+              handleDisabledClick(event);
+              return;
+            }
+            if (!onNext) {
+              return;
+            }
+            if (
+              event.defaultPrevented ||
+              event.metaKey ||
+              event.ctrlKey ||
+              event.shiftKey ||
+              event.button !== 0
+            ) {
+              return;
+            }
+            event.preventDefault();
+            void onNext();
+          }}
           className={`step-nav__button step-nav__button--primary${
             nextLinkDisabled ? " is-disabled" : ""
           }`}
