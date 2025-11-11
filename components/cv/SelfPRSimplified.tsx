@@ -36,7 +36,15 @@ export default function SelfPRSimplified() {
   }
 
   return (
-    <main style={{ maxWidth: 720, margin: '0 auto', padding: '24px' }}>
+    <main
+      style={{
+        width: '100%',
+        maxWidth: 375,
+        margin: '0 auto',
+        padding: '24px 16px 40px',
+        boxSizing: 'border-box',
+      }}
+    >
       <h1 style={{ fontSize: 20, fontWeight: 700, marginBottom: 16 }}>自己PR</h1>
 
       {/* Q&A */}
@@ -55,6 +63,7 @@ export default function SelfPRSimplified() {
             padding: 10,
             border: '1px solid #CCCCCC',
             borderRadius: 6,
+            boxSizing: 'border-box',
           }}
           placeholder="例）ユーザー起点で仮説検証を回し、プロダクト改善を推進できます。"
         />
@@ -71,6 +80,7 @@ export default function SelfPRSimplified() {
             padding: 10,
             border: '1px solid #CCCCCC',
             borderRadius: 6,
+            boxSizing: 'border-box',
           }}
           placeholder="例）チームを巻き込み、難易度の高い案件を完遂します。"
         />
@@ -87,6 +97,7 @@ export default function SelfPRSimplified() {
             padding: 10,
             border: '1px solid #CCCCCC',
             borderRadius: 6,
+            boxSizing: 'border-box',
           }}
           placeholder="例）新技術のキャッチアップが速く、開発生産性を向上できます。"
         />
@@ -105,6 +116,7 @@ export default function SelfPRSimplified() {
             color: '#FFFFFF',
             background: 'linear-gradient(to right, #3A75C4, #669EE8)',
             fontWeight: 700,
+            boxSizing: 'border-box',
           }}
           aria-busy={submitting}
         >
