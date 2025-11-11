@@ -11,7 +11,9 @@ type StepNavProps = {
   prevHref?: string | null;
   nextHref?: string | null;
   nextType?: "link" | "submit";
-  onNextClick?: (event: MouseEvent<HTMLAnchorElement | HTMLButtonElement>) => void;
+  onNextClick?: (
+    event: MouseEvent<HTMLAnchorElement | HTMLButtonElement>
+  ) => void | Promise<void>;
 };
 
 export default function StepNav({
@@ -38,13 +40,25 @@ export default function StepNav({
     event.preventDefault();
   };
 
-  const handleNextLinkClick = (event: MouseEvent<HTMLAnchorElement>) => {
+  const handleNextLinkClick = async (event: MouseEvent<HTMLAnchorElement>) => {
     if (nextLinkDisabled) {
       handleDisabledClick(event);
       return;
     }
+
+    if (
+      event.defaultPrevented ||
+      event.button !== 0 ||
+      event.metaKey ||
+      event.altKey ||
+      event.ctrlKey ||
+      event.shiftKey
+    ) {
+      return;
+    }
+
     if (onNextClick) {
-      onNextClick(event);
+      await onNextClick(event);
     }
   };
 
