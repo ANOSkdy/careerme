@@ -7,6 +7,7 @@ export default function SelfPRSimplified() {
   const [q1, setQ1] = useState('');
   const [q2, setQ2] = useState('');
   const [q3, setQ3] = useState('');
+  const [q4, setQ4] = useState('');
   const [preview, setPreview] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
@@ -19,9 +20,10 @@ export default function SelfPRSimplified() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           strengths: [
-            { category: 'strength1', text: q1 },
-            { category: 'strength2', text: q2 },
-            { category: 'strength3', text: q3 },
+            { category: 'strength_overview', text: q1 },
+            { category: 'strength_episode', text: q2 },
+            { category: 'work_values', text: q3 },
+            { category: 'desired_role', text: q4 },
           ],
         }),
       });
@@ -52,7 +54,7 @@ export default function SelfPRSimplified() {
         <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 8 }}>Q＆A</h2>
 
         <label style={{ display: 'block', fontWeight: 600, margin: '8px 0' }}>
-          自分の強み①
+          自己の強みやPRしたいことを教えてください
         </label>
         <textarea
           value={q1}
@@ -69,7 +71,7 @@ export default function SelfPRSimplified() {
         />
 
         <label style={{ display: 'block', fontWeight: 600, margin: '8px 0' }}>
-          自分の強み②
+          強みが生かされた具体的なエピソードを教えてください
         </label>
         <textarea
           value={q2}
@@ -82,11 +84,11 @@ export default function SelfPRSimplified() {
             borderRadius: 6,
             boxSizing: 'border-box',
           }}
-          placeholder="例）チームを巻き込み、難易度の高い案件を完遂します。"
+          placeholder="例）新規プロダクトの立ち上げで、ユーザーインタビューを通じて価値仮説を磨き上げました。"
         />
 
         <label style={{ display: 'block', fontWeight: 600, margin: '8px 0' }}>
-          自分の強み③
+          仕事をする上で大切にしていることを、理由を含めて教えてください
         </label>
         <textarea
           value={q3}
@@ -99,7 +101,24 @@ export default function SelfPRSimplified() {
             borderRadius: 6,
             boxSizing: 'border-box',
           }}
-          placeholder="例）新技術のキャッチアップが速く、開発生産性を向上できます。"
+          placeholder="例）ユーザーへの価値提供を最優先に、スピードと品質のバランスを意識しています。"
+        />
+
+        <label style={{ display: 'block', fontWeight: 600, margin: '8px 0' }}>
+          希望している職種を教えてください
+        </label>
+        <textarea
+          value={q4}
+          onChange={(e) => setQ4(e.target.value)}
+          rows={2}
+          style={{
+            width: '100%',
+            padding: 10,
+            border: '1px solid #CCCCCC',
+            borderRadius: 6,
+            boxSizing: 'border-box',
+          }}
+          placeholder="例）プロダクトマネージャー、もしくはそれに準ずるポジション"
         />
       </section>
 
