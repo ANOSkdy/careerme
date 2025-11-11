@@ -33,7 +33,16 @@ export default function SummarySimplified() {
   }
 
   return (
-    <main style={{ maxWidth: 720, margin: '0 auto', padding: '24px' }}>
+    <main
+      style={{
+        width: '100%',
+        minHeight: '100vh',
+        margin: 0,
+        padding: '24px 16px 120px',
+        boxSizing: 'border-box',
+        backgroundColor: '#F7F9FC',
+      }}
+    >
       <h1 style={{ fontSize: 20, fontWeight: 700, marginBottom: 16 }}>職務要約</h1>
 
       <section style={{ marginBottom: 24 }}>
@@ -55,7 +64,7 @@ export default function SummarySimplified() {
         </button>
       </section>
 
-      <section style={{ marginBottom: 80 }}>
+      <section style={{ marginBottom: 24 }}>
         <h2 style={{ fontSize: 16, fontWeight: 700, marginBottom: 8 }}>プレビュー</h2>
         <textarea
           value={preview}
@@ -66,6 +75,8 @@ export default function SummarySimplified() {
             padding: 10,
             border: '1px solid #CCCCCC',
             borderRadius: 6,
+            backgroundColor: '#FFFFFF',
+            resize: 'none',
           }}
           placeholder="ここに生成結果が表示されます"
         />
@@ -79,14 +90,15 @@ export default function SummarySimplified() {
           bottom: 0,
           padding: '12px 16px',
           background: '#FFFFFF',
-          boxShadow: '0 -2px 8px rgba(0,0,0,0.06)',
+          boxShadow: '0 -2px 8px rgba(0,0,0,0.08)',
+          display: 'flex',
+          justifyContent: 'center',
         }}
       >
         <button
           onClick={handlePdf}
           style={{
-            display: 'block',
-            width: '100%',
+            width: 'min(480px, 100%)',
             textAlign: 'center',
             padding: '12px 0',
             borderRadius: 8,
@@ -94,6 +106,7 @@ export default function SummarySimplified() {
             background: '#3A75C4',
             color: '#FFFFFF',
             fontWeight: 700,
+            boxShadow: '0 4px 10px rgba(58, 117, 196, 0.25)',
           }}
         >
           PDFを出力
