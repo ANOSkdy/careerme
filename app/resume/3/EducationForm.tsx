@@ -629,7 +629,7 @@ export default function EducationForm() {
                   fontWeight: 600,
                 }}
               >
-                行を削除
+                削除
               </button>
             </div>
           </div>
@@ -651,7 +651,7 @@ export default function EducationForm() {
             cursor: "pointer",
           }}
         >
-          ＋ 学校を追加
+          学校を追加
         </button>
       </div>
 
