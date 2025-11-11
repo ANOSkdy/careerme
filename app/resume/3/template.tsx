@@ -70,18 +70,14 @@ export default function ResumeStep3Template({
         host.style.width = "100%";
       }
 
-      const clickable = Array.from(form.querySelectorAll("button, a")) as (
-        HTMLButtonElement | HTMLAnchorElement
-      )[];
-      const nativeAddButton = clickable.find((el) =>
-        (el.textContent ?? "").trim().includes("学校を追加")
+      const nativeAddButton = form.querySelector<HTMLButtonElement>(
+        "button[data-education-add]"
       );
 
       if (nativeAddButton) {
-        addButtonRef.current =
-          nativeAddButton instanceof HTMLButtonElement ? nativeAddButton : null;
+        addButtonRef.current = nativeAddButton;
         const container = nativeAddButton.parentElement as HTMLElement | null;
-        (nativeAddButton as HTMLElement).style.display = "none";
+        nativeAddButton.style.display = "none";
         if (container) {
           container.style.display = "none";
           if (createdHost) {
@@ -132,16 +128,12 @@ export default function ResumeStep3Template({
           queueMicrotask(() => setPortalHost(refreshed.host));
         }
       }
-      const clickable = Array.from(form.querySelectorAll("button, a")) as (
-        HTMLButtonElement | HTMLAnchorElement
-      )[];
-      const nativeAddButton = clickable.find((el) =>
-        (el.textContent ?? "").trim().includes("学校を追加")
+      const nativeAddButton = form.querySelector<HTMLButtonElement>(
+        "button[data-education-add]"
       );
       if (nativeAddButton) {
-        (nativeAddButton as HTMLElement).style.display = "none";
-        addButtonRef.current =
-          nativeAddButton instanceof HTMLButtonElement ? nativeAddButton : null;
+        nativeAddButton.style.display = "none";
+        addButtonRef.current = nativeAddButton;
       } else {
         addButtonRef.current = null;
       }
