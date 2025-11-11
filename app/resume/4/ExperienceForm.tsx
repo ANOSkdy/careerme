@@ -10,6 +10,7 @@ import {
   useState,
   type ChangeEvent,
   type FormEvent,
+  type MouseEvent,
 } from "react";
 import { z } from "zod";
 
@@ -530,8 +531,7 @@ export default function ExperienceForm() {
     });
   };
 
-  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
+  const proceedToNext = useCallback(async () => {
     setExperienceTouched(true);
     setCertificationTouched(true);
     const parsed = FormSchema.safeParse({
@@ -540,21 +540,38 @@ export default function ExperienceForm() {
     });
 
     if (!parsed.success) {
-      return;
+      return false;
     }
 
     if (!resumeId) {
-      return;
+      return false;
     }
 
     setIsSubmitting(true);
     try {
       await saveExperiences(parsed.data.experiences);
       router.push("/resume/5");
+      return true;
     } finally {
       setIsSubmitting(false);
     }
-  };
+  }, [certifications, experiences, resumeId, router, saveExperiences]);
+
+  const handleSubmit = useCallback(
+    async (event: FormEvent<HTMLFormElement>) => {
+      event.preventDefault();
+      await proceedToNext();
+    },
+    [proceedToNext]
+  );
+
+  const handleNextClick = useCallback(
+    async (event: MouseEvent<HTMLAnchorElement | HTMLButtonElement>) => {
+      event.preventDefault();
+      await proceedToNext();
+    },
+    [proceedToNext]
+  );
 
   const isNextDisabled = !validation.isValid || isSubmitting;
   const loadErrorId = loadError ? "experience-load-error" : undefined;
@@ -627,7 +644,7 @@ export default function ExperienceForm() {
                     htmlFor={`${fieldId}-company`}
                     style={{ display: "block", fontWeight: 600, marginBottom: "8px" }}
                   >
-                    企業名 <span aria-hidden="true" style={{ color: "#ef4444" }}>*</span>
+                    企業名
                   </label>
                   <input
                     id={`${fieldId}-company`}
@@ -671,7 +688,7 @@ export default function ExperienceForm() {
                     htmlFor={`${fieldId}-title`}
                     style={{ display: "block", fontWeight: 600, marginBottom: "8px" }}
                   >
-                    職種 / 役職 <span aria-hidden="true" style={{ color: "#ef4444" }}>*</span>
+                    職種 / 役職
                   </label>
                   <input
                     id={`${fieldId}-title`}
@@ -715,7 +732,7 @@ export default function ExperienceForm() {
                     htmlFor={`${fieldId}-start`}
                     style={{ display: "block", fontWeight: 600, marginBottom: "8px" }}
                   >
-                    開始年月 <span aria-hidden="true" style={{ color: "#ef4444" }}>*</span>
+                    開始年月
                   </label>
                   <input
                     id={`${fieldId}-start`}
@@ -968,7 +985,13 @@ export default function ExperienceForm() {
         <AutoSaveBadge state={certificationSaveState} />
       </section>
 
-      <StepNav step={4} nextType="submit" nextDisabled={isNextDisabled} />
+      <StepNav
+        step={4}
+        nextType="link"
+        nextHref="/resume/5"
+        nextDisabled={isNextDisabled}
+        onNextClick={handleNextClick}
+      />
     </form>
   );
 }
