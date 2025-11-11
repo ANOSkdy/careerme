@@ -489,8 +489,7 @@ export default function LocationForm() {
     [schema, value, resumeId, persist, router, saveDesired, desiredPayload]
   );
 
-  const isValid = validation.success;
-  const nextDisabled = !isValid || isSubmitting || !resumeId;
+  const nextDisabled = isSubmitting;
   const fieldErrorId = fieldError ? "preferredLocation-error" : undefined;
   const loadErrorId = loadError ? "preferredLocation-load-error" : undefined;
   const lookupErrorId = lookupError ? "preferredLocation-lookup-error" : undefined;
@@ -547,11 +546,8 @@ export default function LocationForm() {
 
       <div style={{ display: "grid", gap: "24px" }}>
         <div style={{ display: "grid", gap: "8px" }}>
-          <label
-            htmlFor="preferredLocation"
-            style={{ fontWeight: 600 }}
-          >
-            希望勤務地 <span aria-hidden="true" style={{ color: "#ef4444" }}>*</span>
+          <label htmlFor="preferredLocation" style={{ fontWeight: 600 }}>
+            希望勤務地
           </label>
           <select
             id="preferredLocation"
@@ -561,7 +557,6 @@ export default function LocationForm() {
             onBlur={handleBlur}
             aria-invalid={touched && Boolean(fieldError)}
             aria-describedby={describedBy}
-            required
             style={{
               width: "100%",
               borderRadius: "8px",
