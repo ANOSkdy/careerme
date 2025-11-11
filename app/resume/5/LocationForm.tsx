@@ -8,7 +8,7 @@ import {
   useRef,
   useState,
 } from "react";
-import type { ChangeEvent, FormEvent } from "react";
+import type { ChangeEvent, FormEvent, MouseEvent } from "react";
 
 import type { ZodError } from "zod";
 
@@ -451,57 +451,78 @@ export default function LocationForm() {
     }
   }, [schema, touched, value, persist]);
 
-  const handleSubmit = useCallback(
-    async (event: FormEvent<HTMLFormElement>) => {
-      event.preventDefault();
-      setSubmitError(null);
-      setTouched(true);
-      const result = schema.safeParse({ preferredLocation: value });
-      if (!result.success) {
-        setFieldError(extractValidationMessage(result.error));
-        return;
-      }
-      if (!resumeId) {
-        setSubmitError("保存に必要なIDの取得に失敗しました。ページを再読み込みしてください。");
-        return;
-      }
-      setFieldError(null);
-      setIsSubmitting(true);
-      try {
-        const [locationSaved] = await Promise.all([
-          persist(result.data.preferredLocation, { silent: true }),
-          saveDesired(desiredPayload),
-        ]);
-        if (!locationSaved) {
-          setIsSubmitting(false);
-          setSubmitError("保存に失敗しました。時間をおいて再度お試しください。");
-          return;
-        }
-      } catch (error) {
-        console.error("Failed to save desired conditions", error);
+  const submit = useCallback(async () => {
+    setSubmitError(null);
+    setTouched(true);
+    const result = schema.safeParse({ preferredLocation: value });
+    if (!result.success) {
+      setFieldError(extractValidationMessage(result.error));
+      return;
+    }
+    if (!resumeId) {
+      setSubmitError("保存に必要なIDの取得に失敗しました。ページを再読み込みしてください。");
+      return;
+    }
+    setFieldError(null);
+    setIsSubmitting(true);
+    try {
+      const [locationSaved] = await Promise.all([
+        persist(result.data.preferredLocation, { silent: true }),
+        saveDesired(desiredPayload),
+      ]);
+      if (!locationSaved) {
         setIsSubmitting(false);
         setSubmitError("保存に失敗しました。時間をおいて再度お試しください。");
         return;
       }
+    } catch (error) {
+      console.error("Failed to save desired conditions", error);
       setIsSubmitting(false);
-      router.push("/cv/2");
+      setSubmitError("保存に失敗しました。時間をおいて再度お試しください。");
+      return;
+    }
+    setIsSubmitting(false);
+    router.push("/cv/2");
+  }, [schema, value, resumeId, persist, router, saveDesired, desiredPayload]);
+
+  const handleSubmit = useCallback(
+    (event: FormEvent<HTMLFormElement>) => {
+      event.preventDefault();
+      void submit();
     },
-    [schema, value, resumeId, persist, router, saveDesired, desiredPayload]
+    [submit]
   );
 
-  const isValid = validation.success;
-  const nextDisabled = !isValid || isSubmitting || !resumeId;
+  const handleNextClick = useCallback(
+    async (event: MouseEvent<HTMLAnchorElement | HTMLButtonElement>) => {
+      event.preventDefault();
+      await submit();
+    },
+    [submit]
+  );
+
+  const nextDisabled = isSubmitting;
   const fieldErrorId = fieldError ? "preferredLocation-error" : undefined;
   const loadErrorId = loadError ? "preferredLocation-load-error" : undefined;
   const lookupErrorId = lookupError ? "preferredLocation-lookup-error" : undefined;
+  const submitErrorId = submitError ? "preferredLocation-submit-error" : undefined;
   const describedBy = [fieldErrorId, lookupErrorId, loadErrorId]
+    .filter(Boolean)
+    .join(" ")
+    .trim() || undefined;
+  const formDescriptionIds = [loadErrorId, lookupErrorId, submitErrorId]
     .filter(Boolean)
     .join(" ")
     .trim() || undefined;
 
   return (
-    <form onSubmit={handleSubmit} aria-describedby={loadErrorId} noValidate>
-      <div style={{ marginBottom: "24px" }}>
+    <form
+      onSubmit={handleSubmit}
+      style={{ display: "grid", gap: "24px" }}
+      aria-describedby={formDescriptionIds}
+      noValidate
+    >
+      <div style={{ display: "grid", gap: "8px" }}>
         <h2 className="resume-page-title">希望勤務地</h2>
         <p style={{ color: "var(--color-text-muted, #6b7280)", fontSize: "0.875rem" }}>
           希望する勤務地を選択してください。選択後は自動的に保存されます。
@@ -510,7 +531,7 @@ export default function LocationForm() {
           <p
             id={loadErrorId}
             role="alert"
-            style={{ marginTop: "8px", color: "#dc2626", fontSize: "0.875rem" }}
+            style={{ color: "#dc2626", fontSize: "0.875rem" }}
           >
             {loadError}
           </p>
@@ -519,37 +540,26 @@ export default function LocationForm() {
           <p
             id={lookupErrorId}
             role="alert"
-            style={{ marginTop: "8px", color: "#b45309", fontSize: "0.875rem" }}
+            style={{ color: "#b45309", fontSize: "0.875rem" }}
           >
             {lookupError}
           </p>
         )}
         {submitError && (
           <p
+            id={submitErrorId}
             role="alert"
-            style={{ marginTop: "8px", color: "#dc2626", fontSize: "0.875rem" }}
+            style={{ color: "#dc2626", fontSize: "0.875rem" }}
           >
             {submitError}
           </p>
         )}
       </div>
 
-      <div
-        style={{
-          display: "grid",
-          gap: "20px",
-          borderRadius: "12px",
-          border: "1px solid #e5e7eb",
-          padding: "20px",
-          backgroundColor: "#ffffff",
-        }}
-      >
-        <div>
-          <label
-            htmlFor="preferredLocation"
-            style={{ display: "block", fontWeight: 600, marginBottom: "8px" }}
-          >
-            希望勤務地 <span aria-hidden="true" style={{ color: "#ef4444" }}>*</span>
+      <div style={{ display: "grid", gap: "24px" }}>
+        <div style={{ display: "grid", gap: "8px" }}>
+          <label htmlFor="preferredLocation" style={{ fontWeight: 600 }}>
+            希望勤務地
           </label>
           <select
             id="preferredLocation"
@@ -559,7 +569,6 @@ export default function LocationForm() {
             onBlur={handleBlur}
             aria-invalid={touched && Boolean(fieldError)}
             aria-describedby={describedBy}
-            required
             style={{
               width: "100%",
               borderRadius: "8px",
@@ -582,14 +591,14 @@ export default function LocationForm() {
             <p
               id={fieldErrorId}
               role="alert"
-              style={{ marginTop: "4px", color: "#dc2626", fontSize: "0.875rem" }}
+              style={{ color: "#dc2626", fontSize: "0.875rem" }}
             >
               {fieldError}
             </p>
           )}
           {!fieldError && saveStatus !== "idle" && (
             <p
-              style={{ marginTop: "4px", color: "#6b7280", fontSize: "0.75rem" }}
+              style={{ fontSize: "0.75rem", color: "var(--color-secondary, #6b7280)" }}
               aria-live="polite"
             >
               {saveStatus === "saving" && "自動保存中..."}
@@ -599,18 +608,9 @@ export default function LocationForm() {
           )}
         </div>
 
-        <div>
-          <h3
-            style={{
-              fontSize: "1rem",
-              fontWeight: 600,
-              marginBottom: "8px",
-              color: "var(--color-text-strong, #111827)",
-            }}
-          >
-            希望職種
-          </h3>
-          <p style={{ fontSize: "0.8125rem", color: "#6b7280", marginBottom: "8px" }}>
+        <div style={{ display: "grid", gap: "8px" }}>
+          <h3 style={{ margin: 0, fontSize: "1rem", fontWeight: 600 }}>希望職種</h3>
+          <p style={{ fontSize: "0.8125rem", color: "var(--color-text-muted, #6b7280)" }}>
             希望する職種をタグで入力してください。
           </p>
           <TagInput
@@ -622,18 +622,9 @@ export default function LocationForm() {
           />
         </div>
 
-        <div>
-          <h3
-            style={{
-              fontSize: "1rem",
-              fontWeight: 600,
-              marginBottom: "8px",
-              color: "var(--color-text-strong, #111827)",
-            }}
-          >
-            希望業界
-          </h3>
-          <p style={{ fontSize: "0.8125rem", color: "#6b7280", marginBottom: "8px" }}>
+        <div style={{ display: "grid", gap: "8px" }}>
+          <h3 style={{ margin: 0, fontSize: "1rem", fontWeight: 600 }}>希望業界</h3>
+          <p style={{ fontSize: "0.8125rem", color: "var(--color-text-muted, #6b7280)" }}>
             関心のある業界をタグで入力してください。
           </p>
           <TagInput
@@ -650,9 +641,11 @@ export default function LocationForm() {
 
       <StepNav
         step={5}
-        nextType="submit"
+        nextType="link"
+        nextHref="/cv/2"
         nextDisabled={nextDisabled}
         nextLabel={isSubmitting ? "保存中..." : "次へ"}
+        onNextClick={handleNextClick}
       />
     </form>
   );

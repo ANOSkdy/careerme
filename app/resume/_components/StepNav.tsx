@@ -87,6 +87,7 @@ export default function StepNav({
         <button
           type="submit"
           disabled={nextDisabled}
+          onClick={onNext}
           className={`step-nav__button step-nav__button--primary${
             nextDisabled ? " is-disabled" : ""
           }`}

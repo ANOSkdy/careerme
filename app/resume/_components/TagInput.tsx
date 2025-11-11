@@ -63,10 +63,10 @@ export default function TagInput({
   }, [addTag, draft]);
 
   return (
-    <div>
+    <div style={{ display: "grid", gap: "4px" }}>
       <label
         htmlFor={id}
-        style={{ display: "block", fontSize: "0.875rem", fontWeight: 500, marginBottom: "4px" }}
+        style={{ fontSize: "0.875rem", fontWeight: 600 }}
       >
         {label}
       </label>
@@ -75,10 +75,10 @@ export default function TagInput({
           display: "flex",
           flexWrap: "wrap",
           gap: "8px",
-          border: "1px solid #d1d5db",
-          borderRadius: "12px",
-          padding: "8px 12px",
-          backgroundColor: "#ffffff",
+          border: "1px solid var(--color-border, #d1d5db)",
+          borderRadius: "8px",
+          padding: "6px 8px",
+          backgroundColor: "#fff",
         }}
       >
         {value.map((tag) => (
@@ -88,11 +88,8 @@ export default function TagInput({
               display: "inline-flex",
               alignItems: "center",
               gap: "4px",
-              padding: "4px 8px",
-              borderRadius: "9999px",
-              backgroundColor: "#eff6ff",
-              color: "#1d4ed8",
-              fontSize: "0.75rem",
+              fontSize: "0.875rem",
+              color: "#111827",
             }}
           >
             {tag}
@@ -101,12 +98,12 @@ export default function TagInput({
               onClick={() => removeTag(tag)}
               style={{
                 appearance: "none",
-                background: "transparent",
                 border: "none",
-                color: "#2563eb",
+                background: "transparent",
+                color: "var(--color-primary, #2563eb)",
                 cursor: "pointer",
+                padding: 0,
                 fontSize: "0.75rem",
-                lineHeight: 1,
               }}
               aria-label={`${tag} を削除`}
             >
@@ -134,7 +131,10 @@ export default function TagInput({
           aria-describedby={`${id}-hint`}
         />
       </div>
-      <p id={`${id}-hint`} style={{ marginTop: "4px", fontSize: "0.75rem", color: "#6b7280" }}>
+      <p
+        id={`${id}-hint`}
+        style={{ margin: "4px 0 0", fontSize: "0.75rem", color: "#6b7280" }}
+      >
         {hint}
       </p>
     </div>
