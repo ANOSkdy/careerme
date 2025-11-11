@@ -496,6 +496,34 @@ export default function EducationForm() {
         )}
       </div>
 
+      <div className="final-education" style={{ marginBottom: "32px" }}>
+        <fieldset className="final-education__fieldset">
+          <legend className="final-education__legend">最終学歴</legend>
+          <div className="final-education__options">
+            {finalEducationOptions.map((option) => (
+              <label key={option} className="final-education__option">
+                <input
+                  type="radio"
+                  name="finalEducation"
+                  value={option}
+                  checked={finalEducation === option}
+                  onChange={handleFinalEducationChange}
+                  className="final-education__input"
+                />
+                <span className="final-education__label">{option}</span>
+              </label>
+            ))}
+          </div>
+        </fieldset>
+        {finalSaveState !== "idle" && (
+          <p style={{ marginTop: "8px", fontSize: "0.75rem", color: "var(--color-secondary, #6b7280)" }}>
+            {finalSaveState === "saving" && "最終学歴を保存中…"}
+            {finalSaveState === "saved" && "最終学歴を保存しました"}
+            {finalSaveState === "error" && "最終学歴の保存に失敗しました"}
+          </p>
+        )}
+      </div>
+
       <div style={{ display: "grid", gap: "16px", marginBottom: "24px" }}>
         {items.map((item, index) => (
           <div
@@ -656,34 +684,6 @@ export default function EducationForm() {
       </div>
 
       <AutoSaveBadge state={educationSaveState} />
-
-      <div className="final-education">
-        <fieldset className="final-education__fieldset">
-          <legend className="final-education__legend">最終学歴</legend>
-          <div className="final-education__options">
-            {finalEducationOptions.map((option) => (
-              <label key={option} className="final-education__option">
-                <input
-                  type="radio"
-                  name="finalEducation"
-                  value={option}
-                  checked={finalEducation === option}
-                  onChange={handleFinalEducationChange}
-                  className="final-education__input"
-                />
-                <span className="final-education__label">{option}</span>
-              </label>
-            ))}
-          </div>
-        </fieldset>
-        {finalSaveState !== "idle" && (
-          <p style={{ marginTop: "8px", fontSize: "0.75rem", color: "var(--color-secondary, #6b7280)" }}>
-            {finalSaveState === "saving" && "最終学歴を保存中…"}
-            {finalSaveState === "saved" && "最終学歴を保存しました"}
-            {finalSaveState === "error" && "最終学歴の保存に失敗しました"}
-          </p>
-        )}
-      </div>
 
       <StepNav step={3} nextType="link" nextHref="/resume/4" />
     </form>
