@@ -557,54 +557,46 @@ export default function ExperienceForm() {
   };
 
   const isNextDisabled = !validation.isValid || isSubmitting;
+  const loadErrorId = loadError ? "experience-load-error" : undefined;
+  const listErrorId = listError ? "experience-list-error" : undefined;
+  const formDescriptionIds = [loadErrorId, listErrorId]
+    .filter(Boolean)
+    .join(" ")
+    .trim() || undefined;
   return (
     <form
       onSubmit={handleSubmit}
       style={{ display: "grid", gap: "24px" }}
+      aria-describedby={formDescriptionIds}
       noValidate
     >
       <header style={{ display: "grid", gap: "8px" }}>
         <h2 className="resume-page-title">職歴</h2>
-        <p style={{ color: "#4b5563", fontSize: "0.95rem", lineHeight: 1.6 }}>
+        <p style={{ color: "var(--color-text-muted, #6b7280)", fontSize: "0.875rem" }}>
           これまでの職歴を入力してください。現在の職務に在籍中の場合は「在籍中」にチェックを入れてください。
         </p>
+        {loadError && (
+          <p
+            id={loadErrorId}
+            role="alert"
+            style={{ color: "#dc2626", fontSize: "0.875rem" }}
+          >
+            {loadError}
+          </p>
+        )}
       </header>
 
-      {loadError && (
-        <div
-          role="alert"
-          style={{
-            marginBottom: "16px",
-            padding: "12px",
-            borderRadius: "8px",
-            border: "1px solid #fca5a5",
-            backgroundColor: "#fef2f2",
-            color: "#b91c1c",
-            fontSize: "0.875rem",
-          }}
-        >
-          {loadError}
-        </div>
-      )}
-
       {listError && (
-        <div
+        <p
+          id={listErrorId}
           role="alert"
-          style={{
-            marginBottom: "16px",
-            padding: "12px",
-            borderRadius: "8px",
-            border: "1px solid #fcd34d",
-            backgroundColor: "#fffbeb",
-            color: "#92400e",
-            fontSize: "0.875rem",
-          }}
+          style={{ color: "#dc2626", fontSize: "0.875rem" }}
         >
           {listError}
-        </div>
+        </p>
       )}
 
-      <div style={{ display: "grid", gap: "16px" }}>
+      <div style={{ display: "grid", gap: "24px" }}>
         {experiences.map((row, index) => {
           const fieldId = `experience-${index}`;
           const present = Boolean(row.present);
@@ -618,33 +610,24 @@ export default function ExperienceForm() {
           const endError = fieldErrors.end;
 
           return (
-            <fieldset
-              key={fieldId}
-              style={{
-                border: "1px solid #e5e7eb",
-                borderRadius: "12px",
-                padding: "16px",
-                display: "grid",
-                gap: "12px",
-              }}
-            >
-              <legend style={{ fontSize: "1rem", fontWeight: 600 }}>
+            <div key={fieldId} style={{ display: "grid", gap: "16px" }}>
+              <p style={{ margin: 0, fontSize: "1rem", fontWeight: 600 }}>
                 職歴 {index + 1}
-              </legend>
+              </p>
 
               <div
                 style={{
                   display: "grid",
-                  gap: "12px",
+                  gap: "16px",
                   gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
                 }}
               >
                 <div>
                   <label
                     htmlFor={`${fieldId}-company`}
-                    style={{ display: "block", fontSize: "0.875rem", fontWeight: 600 }}
+                    style={{ display: "block", fontWeight: 600, marginBottom: "8px" }}
                   >
-                    企業名 <span style={{ color: "#ef4444" }}>*</span>
+                    企業名 <span aria-hidden="true" style={{ color: "#ef4444" }}>*</span>
                   </label>
                   <input
                     id={`${fieldId}-company`}
@@ -660,12 +643,12 @@ export default function ExperienceForm() {
                     onBlur={() => setExperienceTouched(true)}
                     required
                     style={{
-                      marginTop: "4px",
                       width: "100%",
                       borderRadius: "8px",
-                      border: "1px solid #d1d5db",
-                      padding: "8px 12px",
-                      fontSize: "0.875rem",
+                      border: "1px solid var(--color-border, #d1d5db)",
+                      padding: "10px 12px",
+                      fontSize: "1rem",
+                      backgroundColor: "#fff",
                     }}
                     aria-invalid={Boolean(companyNameError)}
                     aria-describedby={
@@ -675,7 +658,8 @@ export default function ExperienceForm() {
                   {companyNameError && (
                     <p
                       id={`${fieldId}-company-error`}
-                      style={{ marginTop: "4px", fontSize: "0.75rem", color: "#dc2626" }}
+                      role="alert"
+                      style={{ marginTop: "4px", color: "#dc2626", fontSize: "0.875rem" }}
                     >
                       {companyNameError}
                     </p>
@@ -685,9 +669,9 @@ export default function ExperienceForm() {
                 <div>
                   <label
                     htmlFor={`${fieldId}-title`}
-                    style={{ display: "block", fontSize: "0.875rem", fontWeight: 600 }}
+                    style={{ display: "block", fontWeight: 600, marginBottom: "8px" }}
                   >
-                    職種 / 役職 <span style={{ color: "#ef4444" }}>*</span>
+                    職種 / 役職 <span aria-hidden="true" style={{ color: "#ef4444" }}>*</span>
                   </label>
                   <input
                     id={`${fieldId}-title`}
@@ -703,12 +687,12 @@ export default function ExperienceForm() {
                     onBlur={() => setExperienceTouched(true)}
                     required
                     style={{
-                      marginTop: "4px",
                       width: "100%",
                       borderRadius: "8px",
-                      border: "1px solid #d1d5db",
-                      padding: "8px 12px",
-                      fontSize: "0.875rem",
+                      border: "1px solid var(--color-border, #d1d5db)",
+                      padding: "10px 12px",
+                      fontSize: "1rem",
+                      backgroundColor: "#fff",
                     }}
                     aria-invalid={Boolean(jobTitleError)}
                     aria-describedby={
@@ -718,7 +702,8 @@ export default function ExperienceForm() {
                   {jobTitleError && (
                     <p
                       id={`${fieldId}-title-error`}
-                      style={{ marginTop: "4px", fontSize: "0.75rem", color: "#dc2626" }}
+                      role="alert"
+                      style={{ marginTop: "4px", color: "#dc2626", fontSize: "0.875rem" }}
                     >
                       {jobTitleError}
                     </p>
@@ -728,9 +713,9 @@ export default function ExperienceForm() {
                 <div>
                   <label
                     htmlFor={`${fieldId}-start`}
-                    style={{ display: "block", fontSize: "0.875rem", fontWeight: 600 }}
+                    style={{ display: "block", fontWeight: 600, marginBottom: "8px" }}
                   >
-                    開始年月 <span style={{ color: "#ef4444" }}>*</span>
+                    開始年月 <span aria-hidden="true" style={{ color: "#ef4444" }}>*</span>
                   </label>
                   <input
                     id={`${fieldId}-start`}
@@ -746,12 +731,12 @@ export default function ExperienceForm() {
                     onBlur={() => setExperienceTouched(true)}
                     required
                     style={{
-                      marginTop: "4px",
                       width: "100%",
                       borderRadius: "8px",
-                      border: "1px solid #d1d5db",
-                      padding: "8px 12px",
-                      fontSize: "0.875rem",
+                      border: "1px solid var(--color-border, #d1d5db)",
+                      padding: "10px 12px",
+                      fontSize: "1rem",
+                      backgroundColor: "#fff",
                     }}
                     aria-invalid={Boolean(startError)}
                     aria-describedby={startError ? `${fieldId}-start-error` : undefined}
@@ -759,7 +744,8 @@ export default function ExperienceForm() {
                   {startError && (
                     <p
                       id={`${fieldId}-start-error`}
-                      style={{ marginTop: "4px", fontSize: "0.75rem", color: "#dc2626" }}
+                      role="alert"
+                      style={{ marginTop: "4px", color: "#dc2626", fontSize: "0.875rem" }}
                     >
                       {startError}
                     </p>
@@ -769,7 +755,7 @@ export default function ExperienceForm() {
                 <div>
                   <label
                     htmlFor={`${fieldId}-end`}
-                    style={{ display: "block", fontSize: "0.875rem", fontWeight: 600 }}
+                    style={{ display: "block", fontWeight: 600, marginBottom: "8px" }}
                   >
                     終了年月
                   </label>
@@ -787,12 +773,12 @@ export default function ExperienceForm() {
                     onBlur={() => setExperienceTouched(true)}
                     disabled={present}
                     style={{
-                      marginTop: "4px",
                       width: "100%",
                       borderRadius: "8px",
-                      border: "1px solid #d1d5db",
-                      padding: "8px 12px",
-                      fontSize: "0.875rem",
+                      border: "1px solid var(--color-border, #d1d5db)",
+                      padding: "10px 12px",
+                      fontSize: "1rem",
+                      backgroundColor: present ? "#f9fafb" : "#fff",
                     }}
                     aria-invalid={Boolean(endError)}
                     aria-describedby={endError ? `${fieldId}-end-error` : undefined}
@@ -800,7 +786,8 @@ export default function ExperienceForm() {
                   {endError && (
                     <p
                       id={`${fieldId}-end-error`}
-                      style={{ marginTop: "4px", fontSize: "0.75rem", color: "#dc2626" }}
+                      role="alert"
+                      style={{ marginTop: "4px", color: "#dc2626", fontSize: "0.875rem" }}
                     >
                       {endError}
                     </p>
@@ -828,10 +815,10 @@ export default function ExperienceForm() {
                 <label htmlFor={`${fieldId}-present`}>在籍中</label>
               </div>
 
-              <div>
+              <div style={{ display: "grid", gap: "8px" }}>
                 <label
                   htmlFor={`${fieldId}-description`}
-                  style={{ display: "block", fontSize: "0.875rem", fontWeight: 600 }}
+                  style={{ fontWeight: 600 }}
                 >
                   業務内容（任意）
                 </label>
@@ -848,74 +835,71 @@ export default function ExperienceForm() {
                   onBlur={() => setExperienceTouched(true)}
                   rows={4}
                   style={{
-                    marginTop: "4px",
                     width: "100%",
                     borderRadius: "8px",
-                    border: "1px solid #d1d5db",
-                    padding: "8px 12px",
-                    fontSize: "0.875rem",
+                    border: "1px solid var(--color-border, #d1d5db)",
+                    padding: "10px 12px",
+                    fontSize: "1rem",
+                    backgroundColor: "#fff",
                     resize: "vertical",
                   }}
                 />
               </div>
 
-              <div style={{ display: "flex", justifyContent: "flex-end" }}>
+              <div>
                 <button
                   type="button"
                   onClick={() => handleRemoveRow(index)}
                   style={{
                     appearance: "none",
-                    border: "1px solid #fecaca",
-                    backgroundColor: "#fef2f2",
-                    color: "#b91c1c",
-                    padding: "6px 12px",
-                    borderRadius: "8px",
-                    fontSize: "0.75rem",
+                    border: "none",
+                    background: "transparent",
+                    color: "var(--color-primary, #2563eb)",
                     cursor: "pointer",
+                    padding: 0,
+                    fontSize: "0.875rem",
                   }}
                   aria-label={`職歴 ${index + 1} を削除`}
                 >
                   職歴を削除
                 </button>
               </div>
-            </fieldset>
+            </div>
           );
         })}
       </div>
 
-      <div style={{ marginTop: "16px" }}>
+      <div>
         <button
           type="button"
           onClick={handleAddRow}
           style={{
             appearance: "none",
-            border: "1px solid var(--color-primary, #2563eb)",
-            backgroundColor: "var(--color-primary, #2563eb)",
-            color: "#ffffff",
-            padding: "8px 20px",
-            borderRadius: "9999px",
+            border: "1px solid var(--color-border, #d1d5db)",
+            background: "#ffffff",
+            color: "#111827",
+            padding: "8px 16px",
+            borderRadius: "8px",
             fontSize: "0.875rem",
             cursor: "pointer",
           }}
         >
-          職歴の追加
+          職歴を追加
         </button>
       </div>
 
       <AutoSaveBadge state={experienceSaveState} />
 
-      <section style={{ marginTop: "32px" }}>
-        <h3 style={{ fontSize: "1.125rem", fontWeight: 600, marginBottom: "12px" }}>
-          資格
-        </h3>
-        <p style={{ fontSize: "0.875rem", color: "#6b7280", marginBottom: "12px" }}>
+      <section style={{ display: "grid", gap: "12px" }}>
+        <h3 style={{ margin: 0, fontSize: "1rem", fontWeight: 600 }}>資格</h3>
+        <p style={{ fontSize: "0.875rem", color: "var(--color-text-muted, #6b7280)" }}>
           取得済みの資格を選択してください。複数選択できます。
         </p>
 
-        <div style={{ display: "grid", gap: "12px" }}>
+        <div style={{ display: "grid", gap: "8px" }}>
           <label
             htmlFor="resume-certifications"
-            style={{ fontSize: "0.875rem", fontWeight: 600 }}
+            style={{ fontWeight: 600 }}
           >
             資格一覧
           </label>
@@ -928,9 +912,10 @@ export default function ExperienceForm() {
             style={{
               minHeight: "160px",
               borderRadius: "8px",
-              border: "1px solid #d1d5db",
-              padding: "8px",
-              fontSize: "0.875rem",
+              border: "1px solid var(--color-border, #d1d5db)",
+              padding: "10px",
+              fontSize: "1rem",
+              backgroundColor: "#fff",
             }}
           >
             {certificationOptions.map((option) => (
@@ -941,27 +926,22 @@ export default function ExperienceForm() {
           </select>
 
           {Array.isArray(certifications) && certifications.length > 0 && (
-            <div style={{ display: "flex", flexWrap: "wrap", gap: "8px" }}>
+            <ul
+              style={{
+                margin: "8px 0 0",
+                paddingLeft: "20px",
+                fontSize: "0.875rem",
+                color: "#374151",
+              }}
+            >
               {certifications.map((value) => {
                 const option = certificationOptions.find(
                   (item) => item.value === value
                 );
                 const label = option?.label ?? value;
                 return (
-                  <span
-                    key={value}
-                    style={{
-                      display: "inline-flex",
-                      alignItems: "center",
-                      gap: "6px",
-                      padding: "6px 10px",
-                      borderRadius: "9999px",
-                      backgroundColor: "#eff6ff",
-                      color: "#1d4ed8",
-                      fontSize: "0.75rem",
-                    }}
-                  >
-                    {label}
+                  <li key={value} style={{ marginBottom: "4px" }}>
+                    <span>{label}</span>{" "}
                     <button
                       type="button"
                       onClick={() => handleRemoveCertification(value)}
@@ -970,18 +950,18 @@ export default function ExperienceForm() {
                         appearance: "none",
                         border: "none",
                         background: "transparent",
-                        color: "inherit",
+                        color: "var(--color-primary, #2563eb)",
                         cursor: "pointer",
                         padding: 0,
-                        fontSize: "0.75rem",
+                        fontSize: "0.8125rem",
                       }}
                     >
                       ×
                     </button>
-                  </span>
+                  </li>
                 );
               })}
-            </div>
+            </ul>
           )}
         </div>
 

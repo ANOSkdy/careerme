@@ -11,6 +11,7 @@ type StepNavProps = {
   prevHref?: string | null;
   nextHref?: string | null;
   nextType?: "link" | "submit";
+  onNextClick?: (event: MouseEvent<HTMLAnchorElement | HTMLButtonElement>) => void;
 };
 
 export default function StepNav({
@@ -21,6 +22,7 @@ export default function StepNav({
   prevHref,
   nextHref,
   nextType = "link",
+  onNextClick,
 }: StepNavProps) {
   const computedPrevHref = prevHref ?? (step === 1 ? null : `/resume/${step - 1}`);
   const computedNextHref =
@@ -34,6 +36,16 @@ export default function StepNav({
 
   const handleDisabledClick = (event: MouseEvent<HTMLAnchorElement>) => {
     event.preventDefault();
+  };
+
+  const handleNextLinkClick = (event: MouseEvent<HTMLAnchorElement>) => {
+    if (nextLinkDisabled) {
+      handleDisabledClick(event);
+      return;
+    }
+    if (onNextClick) {
+      onNextClick(event);
+    }
   };
 
   return (
@@ -55,7 +67,13 @@ export default function StepNav({
           href={computedNextHref ?? "#"}
           aria-disabled={nextLinkDisabled}
           tabIndex={nextLinkDisabled ? -1 : undefined}
-          onClick={nextLinkDisabled ? handleDisabledClick : undefined}
+          onClick={
+            nextLinkDisabled
+              ? handleDisabledClick
+              : onNextClick
+                ? handleNextLinkClick
+                : undefined
+          }
           className={`step-nav__button step-nav__button--primary${
             nextLinkDisabled ? " is-disabled" : ""
           }`}
@@ -66,6 +84,7 @@ export default function StepNav({
         <button
           type="submit"
           disabled={nextDisabled}
+          onClick={onNextClick}
           className={`step-nav__button step-nav__button--primary${
             nextDisabled ? " is-disabled" : ""
           }`}
