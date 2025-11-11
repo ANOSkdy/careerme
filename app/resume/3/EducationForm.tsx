@@ -528,6 +528,8 @@ export default function EducationForm() {
         {items.map((item, index) => (
           <div
             key={index}
+            data-education-card="true"
+            data-education-card-id={String(index)}
             style={{
               border: "1px solid var(--color-border, #d1d5db)",
               borderRadius: "12px",
@@ -665,6 +667,7 @@ export default function EducationForm() {
 
         <button
           type="button"
+          data-education-add="true"
           onClick={handleAddRow}
           style={{
             display: "inline-flex",

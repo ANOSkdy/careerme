@@ -13,7 +13,7 @@ const FINAL_EDUCATION_OPTIONS = [
   "その他",
 ] as const;
 
-type SchoolCard = { id: number };
+type SchoolCard = { id: string };
 type EnsureResult = { form: HTMLFormElement; host: HTMLElement };
 
 export default function ResumeStep3Template({
@@ -22,14 +22,41 @@ export default function ResumeStep3Template({
   children: ReactNode;
 }) {
   const [portalHost, setPortalHost] = useState<HTMLElement | null>(null);
-  const [cards, setCards] = useState<SchoolCard[]>(() => [{ id: Date.now() }]);
+  const [cards, setCards] = useState<SchoolCard[]>([]);
   const observerRef = useRef<MutationObserver | null>(null);
+  const formRef = useRef<HTMLFormElement | null>(null);
+  const addButtonRef = useRef<HTMLButtonElement | null>(null);
+
+  const syncCards = useCallback(() => {
+    const form = formRef.current;
+    if (!form) return;
+
+    const nodes = Array.from(
+      form.querySelectorAll<HTMLElement>("[data-education-card]")
+    );
+
+    setCards((prev) => {
+      const next = nodes.map((node, index) => ({
+        id: node.dataset.educationCardId ?? `${index}`,
+      }));
+
+      if (
+        next.length === prev.length &&
+        next.every((card, index) => card.id === prev[index]?.id)
+      ) {
+        return prev;
+      }
+
+      return next;
+    });
+  }, []);
 
   const ensurePortalHost = useCallback((): EnsureResult | null => {
       const main = document.querySelector("main") ?? document.body;
       const form = (main?.querySelector("form") as HTMLFormElement | null) ?? null;
       if (!form) return null;
 
+      formRef.current = form;
       neutralizeGuards(form);
 
       const hostId = "resume-step3-augment";
@@ -51,6 +78,8 @@ export default function ResumeStep3Template({
       );
 
       if (nativeAddButton) {
+        addButtonRef.current =
+          nativeAddButton instanceof HTMLButtonElement ? nativeAddButton : null;
         const container = nativeAddButton.parentElement as HTMLElement | null;
         (nativeAddButton as HTMLElement).style.display = "none";
         if (container) {
@@ -61,8 +90,11 @@ export default function ResumeStep3Template({
         } else if (createdHost) {
           nativeAddButton.insertAdjacentElement("afterend", host);
         }
-      } else if (createdHost) {
-        form.appendChild(host);
+      } else {
+        addButtonRef.current = null;
+        if (createdHost) {
+          form.appendChild(host);
+        }
       }
 
       const finalEducationSection = form.querySelector(".final-education") as HTMLElement | null;
@@ -75,14 +107,17 @@ export default function ResumeStep3Template({
         stepNav.style.display = "none";
       }
 
+      syncCards();
+
       return host ? { form, host } : null;
-  }, []);
+  }, [syncCards]);
 
   useEffect(() => {
     const ensured = ensurePortalHost();
     if (!ensured) return;
     const { form, host } = ensured;
     queueMicrotask(() => setPortalHost(host));
+    queueMicrotask(syncCards);
 
     if (observerRef.current) {
       observerRef.current.disconnect();
@@ -105,6 +140,10 @@ export default function ResumeStep3Template({
       );
       if (nativeAddButton) {
         (nativeAddButton as HTMLElement).style.display = "none";
+        addButtonRef.current =
+          nativeAddButton instanceof HTMLButtonElement ? nativeAddButton : null;
+      } else {
+        addButtonRef.current = null;
       }
       const finalEducationSection = form.querySelector(".final-education") as HTMLElement | null;
       if (finalEducationSection) {
@@ -114,6 +153,7 @@ export default function ResumeStep3Template({
       if (stepNav) {
         stepNav.style.display = "none";
       }
+      syncCards();
     });
 
     observerRef.current.observe(form, {
@@ -125,12 +165,14 @@ export default function ResumeStep3Template({
     return () => {
       observerRef.current?.disconnect();
     };
-  }, [ensurePortalHost]);
+  }, [ensurePortalHost, syncCards]);
 
   useEffect(() => {
     return () => {
       observerRef.current?.disconnect();
       observerRef.current = null;
+      formRef.current = null;
+      addButtonRef.current = null;
       if (portalHost?.parentElement) {
         portalHost.parentElement.removeChild(portalHost);
       }
@@ -138,7 +180,16 @@ export default function ResumeStep3Template({
   }, [portalHost]);
 
   const handleAddCard = () => {
-    setCards((prev) => [...prev, { id: Date.now() + Math.random() }]);
+    if (addButtonRef.current) {
+      addButtonRef.current.click();
+      queueMicrotask(syncCards);
+      return;
+    }
+
+    setCards((prev) => [
+      ...prev,
+      { id: `${Date.now() + Math.random()}` },
+    ]);
   };
 
   return (
