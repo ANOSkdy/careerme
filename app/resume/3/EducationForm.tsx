@@ -108,8 +108,11 @@ function prepareEducationPayload(items: EducationItem[]) {
 
 export default function EducationForm() {
   const router = useRouter();
-  const [items, setItems] = useState<EducationItem[]>([defaultItem]);
-  const itemsRef = useRef<EducationItem[]>([defaultItem]);
+  const initialItems = useMemo(() => [{ ...defaultItem }], []);
+  const [items, setItems] = useState<EducationItem[]>(initialItems);
+  const itemsRef = useRef<EducationItem[]>(initialItems);
+  const hasHydratedRef = useRef(false);
+  const hasLocalEditsRef = useRef(false);
   const [rowErrors, setRowErrors] = useState<RowErrors>({});
   const [listError, setListError] = useState<string | null>(null);
   const [finalEducation, setFinalEducation] = useState<FinalEducation | "">("");
@@ -161,6 +164,26 @@ export default function EducationForm() {
     return ensureIdPromiseRef.current;
   }, []);
 
+  const applyInitialItems = useCallback(
+    (incoming: EducationItem[], snapshot: string | null) => {
+      const prepared =
+        incoming.length > 0
+          ? incoming.map((item) => ({ ...item }))
+          : [{ ...defaultItem }];
+
+      if (!hasHydratedRef.current && !hasLocalEditsRef.current) {
+        itemsRef.current = prepared;
+        setItems(prepared);
+        hasHydratedRef.current = true;
+      } else if (!hasHydratedRef.current) {
+        hasHydratedRef.current = true;
+      }
+
+      lastEducationSnapshotRef.current = snapshot;
+    },
+    [setItems]
+  );
+
   useEffect(() => {
     let cancelled = false;
     setIsHydrating(true);
@@ -191,9 +214,7 @@ export default function EducationForm() {
         }
 
         if (!id) {
-          itemsRef.current = [defaultItem];
-          setItems([defaultItem]);
-          lastEducationSnapshotRef.current = null;
+          applyInitialItems([], null);
           setLoadError(null);
           return;
         }
@@ -210,12 +231,10 @@ export default function EducationForm() {
         const normalized = Array.isArray(educationJson.items)
           ? educationJson.items.map((item) => normalizeEducationItem(item))
           : [];
-        const nextItems = normalized.length ? normalized : [defaultItem];
-        itemsRef.current = nextItems;
-        setItems(nextItems);
-        lastEducationSnapshotRef.current = normalized.length
+        const snapshot = normalized.length
           ? JSON.stringify(prepareEducationPayload(normalized))
           : JSON.stringify([]);
+        applyInitialItems(normalized, snapshot);
         setLoadError(null);
       } catch (error) {
         if (!cancelled) {
@@ -232,7 +251,7 @@ export default function EducationForm() {
     return () => {
       cancelled = true;
     };
-  }, [ensureResumeId]);
+  }, [applyInitialItems, ensureResumeId]);
 
   useEffect(() => {
     itemsRef.current = items;
@@ -356,13 +375,20 @@ export default function EducationForm() {
     await saveHighestEducation(value);
   }, 2000, { enabled: Boolean(autoSaveHighestPayload) && !isHydrating });
 
-  const updateItems = useCallback((updater: (prev: EducationItem[]) => EducationItem[]) => {
-    setItems((prev) => {
-      const next = updater(prev);
-      itemsRef.current = next;
-      return next;
-    });
-  }, []);
+  const updateItems = useCallback(
+    (updater: (draft: EducationItem[]) => EducationItem[]) => {
+      setItems((prev) => {
+        const draft = prev.map((item) => ({ ...item }));
+        const result = updater(draft);
+        const nextArray = Array.isArray(result) ? result : draft;
+        const final = [...nextArray];
+        itemsRef.current = final;
+        hasLocalEditsRef.current = true;
+        return final;
+      });
+    },
+    []
+  );
 
   const handleItemChange = useCallback(
     (index: number, key: keyof Omit<EducationItem, "present">) =>
@@ -394,14 +420,14 @@ export default function EducationForm() {
   );
 
   const handleAddRow = useCallback(() => {
-    updateItems((prev) => [...prev, { ...defaultItem }]);
+    updateItems((draft) => [...draft, { ...defaultItem }]);
   }, [updateItems]);
 
   const handleRemoveRow = useCallback(
     (index: number) => {
-      updateItems((prev) => {
-        if (prev.length === 1) return [{ ...defaultItem }];
-        return prev.filter((_, rowIndex) => rowIndex !== index);
+      updateItems((draft) => {
+        const next = draft.filter((_, rowIndex) => rowIndex !== index);
+        return next.length > 0 ? next : [{ ...defaultItem }];
       });
     },
     [updateItems]
