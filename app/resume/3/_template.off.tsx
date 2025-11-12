@@ -79,7 +79,7 @@ export default function ResumeStep3Template({
         const container = nativeAddButton.parentElement as HTMLElement | null;
         nativeAddButton.style.display = "none";
         if (container) {
-          container.style.display = "none";
+          //container.style.display = "none";
           if (createdHost) {
             container.insertAdjacentElement("afterend", host);
           }
