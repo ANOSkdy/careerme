@@ -3,17 +3,6 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 
-const FINAL_EDUCATION_OPTIONS = [
-  "院卒",
-  "大卒",
-  "短大",
-  "専門",
-  "高専",
-  "高卒",
-  "その他",
-] as const;
-
-type SchoolCard = { id: string };
 type EnsureResult = { form: HTMLFormElement; host: HTMLElement };
 
 export default function ResumeStep3Template({
@@ -22,10 +11,10 @@ export default function ResumeStep3Template({
   children: ReactNode;
 }) {
   const [portalHost, setPortalHost] = useState<HTMLElement | null>(null);
-  const [cards, setCards] = useState<SchoolCard[]>([]);
   const observerRef = useRef<MutationObserver | null>(null);
   const formRef = useRef<HTMLFormElement | null>(null);
   const addButtonRef = useRef<HTMLButtonElement | null>(null);
+  const hostRef = useRef<HTMLElement | null>(null);
 
   const syncCards = useCallback(() => {
     const form = formRef.current;
@@ -35,20 +24,13 @@ export default function ResumeStep3Template({
       form.querySelectorAll<HTMLElement>("[data-education-card]")
     );
 
-    setCards((prev) => {
-      const next = nodes.map((node, index) => ({
-        id: node.dataset.educationCardId ?? `${index}`,
-      }));
+    const host = hostRef.current ??
+      form.querySelector<HTMLElement>("#resume-step3-augment");
 
-      if (
-        next.length === prev.length &&
-        next.every((card, index) => card.id === prev[index]?.id)
-      ) {
-        return prev;
-      }
-
-      return next;
-    });
+    if (host) {
+      hostRef.current = host;
+      host.dataset.educationCardCount = `${nodes.length}`;
+    }
   }, []);
 
   const ensurePortalHost = useCallback((): EnsureResult | null => {
@@ -78,11 +60,8 @@ export default function ResumeStep3Template({
         addButtonRef.current = nativeAddButton;
         const container = nativeAddButton.parentElement as HTMLElement | null;
         nativeAddButton.style.display = "none";
-        if (container) {
-          container.style.display = "none";
-          if (createdHost) {
-            container.insertAdjacentElement("afterend", host);
-          }
+        if (container && createdHost) {
+          container.insertAdjacentElement("afterend", host);
         } else if (createdHost) {
           nativeAddButton.insertAdjacentElement("afterend", host);
         }
@@ -93,68 +72,76 @@ export default function ResumeStep3Template({
         }
       }
 
-      const finalEducationSection = form.querySelector(".final-education") as HTMLElement | null;
-      if (finalEducationSection) {
-        finalEducationSection.style.display = "none";
-      }
-
-      const stepNav = form.querySelector(".step-nav") as HTMLElement | null;
-      if (stepNav) {
-        stepNav.style.display = "none";
-      }
-
+      hostRef.current = host;
       syncCards();
 
       return host ? { form, host } : null;
   }, [syncCards]);
 
   useEffect(() => {
-    const ensured = ensurePortalHost();
-    if (!ensured) return;
-    const { form, host } = ensured;
-    queueMicrotask(() => setPortalHost(host));
-    queueMicrotask(syncCards);
+    let cancelled = false;
 
-    if (observerRef.current) {
-      observerRef.current.disconnect();
-    }
+    const initialize = (attempt = 0) => {
+      if (cancelled) return;
 
-    observerRef.current = new MutationObserver(() => {
-      neutralizeGuards(form);
-      const existingHost = form.querySelector<HTMLElement>("#resume-step3-augment");
-      if (!existingHost) {
-        const refreshed = ensurePortalHost();
-        if (refreshed) {
-          queueMicrotask(() => setPortalHost(refreshed.host));
+      const ensured = ensurePortalHost();
+
+      if (!ensured) {
+        if (attempt < 10) {
+          requestAnimationFrame(() => initialize(attempt + 1));
         }
+        return;
       }
-      const nativeAddButton = form.querySelector<HTMLButtonElement>(
-        "button[data-education-add]"
-      );
-      if (nativeAddButton) {
-        nativeAddButton.style.display = "none";
-        addButtonRef.current = nativeAddButton;
-      } else {
-        addButtonRef.current = null;
-      }
-      const finalEducationSection = form.querySelector(".final-education") as HTMLElement | null;
-      if (finalEducationSection) {
-        finalEducationSection.style.display = "none";
-      }
-      const stepNav = form.querySelector(".step-nav") as HTMLElement | null;
-      if (stepNav) {
-        stepNav.style.display = "none";
-      }
-      syncCards();
-    });
 
-    observerRef.current.observe(form, {
-      childList: true,
-      subtree: true,
-      attributes: true,
-    });
+      const { form, host } = ensured;
+
+      queueMicrotask(() => {
+        if (!cancelled) {
+          setPortalHost(host);
+        }
+      });
+      requestAnimationFrame(syncCards);
+
+      if (observerRef.current) {
+        observerRef.current.disconnect();
+      }
+
+      observerRef.current = new MutationObserver(() => {
+        neutralizeGuards(form);
+        const existingHost = form.querySelector<HTMLElement>("#resume-step3-augment");
+        if (!existingHost) {
+          const refreshed = ensurePortalHost();
+          if (refreshed) {
+            queueMicrotask(() => {
+              if (!cancelled) {
+                setPortalHost(refreshed.host);
+              }
+            });
+          }
+        }
+        const nativeAddButton = form.querySelector<HTMLButtonElement>(
+          "button[data-education-add]"
+        );
+        if (nativeAddButton) {
+          nativeAddButton.style.display = "none";
+          addButtonRef.current = nativeAddButton;
+        } else {
+          addButtonRef.current = null;
+        }
+        requestAnimationFrame(syncCards);
+      });
+
+      observerRef.current.observe(form, {
+        childList: true,
+        subtree: true,
+        attributes: true,
+      });
+    };
+
+    initialize();
 
     return () => {
+      cancelled = true;
       observerRef.current?.disconnect();
     };
   }, [ensurePortalHost, syncCards]);
@@ -165,6 +152,7 @@ export default function ResumeStep3Template({
       observerRef.current = null;
       formRef.current = null;
       addButtonRef.current = null;
+      hostRef.current = null;
       if (portalHost?.parentElement) {
         portalHost.parentElement.removeChild(portalHost);
       }
@@ -174,14 +162,8 @@ export default function ResumeStep3Template({
   const handleAddCard = () => {
     if (addButtonRef.current) {
       addButtonRef.current.click();
-      queueMicrotask(syncCards);
-      return;
+      requestAnimationFrame(syncCards);
     }
-
-    setCards((prev) => [
-      ...prev,
-      { id: `${Date.now() + Math.random()}` },
-    ]);
   };
 
   return (
@@ -203,46 +185,6 @@ export default function ResumeStep3Template({
         createPortal(
           <div className="resume-step3-augment">
             <style>{`
-              .resume-step3-augment .section {
-                margin-top: 20px;
-              }
-              .resume-step3-augment h2 {
-                font-size: 1rem;
-                font-weight: 600;
-                margin-bottom: 12px;
-              }
-              .resume-step3-augment .radio-grid {
-                display: flex;
-                flex-wrap: wrap;
-                gap: 8px;
-              }
-              .resume-step3-augment .radio-pill {
-                display: inline-flex;
-                align-items: center;
-                justify-content: center;
-                padding: 10px 18px;
-                border-radius: 9999px;
-                border: 1px solid var(--color-border, #d1d5db);
-                background: #ffffff;
-                color: var(--color-text, #1f2937);
-                cursor: pointer;
-                transition: background 0.2s ease, color 0.2s ease, border-color 0.2s ease;
-              }
-              .resume-step3-augment .radio-input {
-                position: absolute;
-                opacity: 0;
-                width: 0;
-                height: 0;
-              }
-              .resume-step3-augment .radio-input:focus-visible + .radio-pill {
-                outline: 2px solid var(--color-primary, #2563eb);
-                outline-offset: 2px;
-              }
-              .resume-step3-augment .radio-input:checked + .radio-pill {
-                background: var(--color-primary, #2563eb);
-                border-color: var(--color-primary, #2563eb);
-                color: #ffffff;
-              }
               .resume-step3-augment .add-button {
                 width: 100%;
                 border: 1px dashed var(--color-border, #94a3b8);
@@ -253,124 +195,12 @@ export default function ResumeStep3Template({
                 padding: 12px;
                 cursor: pointer;
               }
-              .resume-step3-augment .cards {
-                display: grid;
-                gap: 12px;
-                margin-top: 12px;
-              }
-              .resume-step3-augment .card {
-                border: 1px solid var(--color-border, #e2e8f0);
-                border-radius: 16px;
-                padding: 16px;
-                background: #ffffff;
-                display: grid;
-                gap: 12px;
-              }
-              .resume-step3-augment .field {
-                display: grid;
-                gap: 4px;
-              }
-              .resume-step3-augment .field label {
-                font-size: 0.875rem;
-                color: var(--color-text-secondary, #475569);
-              }
-              .resume-step3-augment .field input,
-              .resume-step3-augment .field select {
-                border: 1px solid var(--color-border, #cbd5f5);
-                border-radius: 10px;
-                padding: 10px 12px;
-                font-size: 0.95rem;
-              }
-              .resume-step3-augment .field-row {
-                display: grid;
-                grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-                gap: 12px;
-              }
-              .resume-step3-augment .next-link {
-                display: block;
-                margin-top: 24px;
-                text-align: center;
-                border-radius: 12px;
-                padding: 12px;
-                background: var(--color-primary, #2563eb);
-                color: #ffffff;
-                font-weight: 700;
-                text-decoration: none;
-              }
             `}</style>
-
-            <section className="section" aria-label="最終学歴">
-              <h2>最終学歴</h2>
-              <div className="radio-grid">
-                {FINAL_EDUCATION_OPTIONS.map((option) => {
-                  const id = `final-edu-${option}`;
-                  return (
-                    <div key={option}>
-                      <input
-                        id={id}
-                        className="radio-input"
-                        type="radio"
-                        name="finalEdu"
-                        value={option}
-                      />
-                      <label className="radio-pill" htmlFor={id}>
-                        {option}
-                      </label>
-                    </div>
-                  );
-                })}
-              </div>
-            </section>
-
-            <section className="section" aria-label="学校情報">
+            <section aria-label="学校情報">
               <button type="button" className="add-button" onClick={handleAddCard}>
                 ＋ 学校を追加
               </button>
-              <div className="cards">
-                {cards.map((card, index) => (
-                  <div className="card" key={card.id}>
-                    <div className="field">
-                      <label htmlFor={`school-name-${card.id}`}>学校名</label>
-                      <input
-                        id={`school-name-${card.id}`}
-                        name={`schools[${index}][name]`}
-                        type="text"
-                      />
-                    </div>
-                    <div className="field">
-                      <label htmlFor={`school-dept-${card.id}`}>学部・学科</label>
-                      <input
-                        id={`school-dept-${card.id}`}
-                        name={`schools[${index}][department]`}
-                        type="text"
-                      />
-                    </div>
-                    <div className="field-row">
-                      <div className="field">
-                        <label htmlFor={`school-start-${card.id}`}>入学年月</label>
-                        <input
-                          id={`school-start-${card.id}`}
-                          name={`schools[${index}][start]`}
-                          type="month"
-                        />
-                      </div>
-                      <div className="field">
-                        <label htmlFor={`school-end-${card.id}`}>卒業(予定)年月</label>
-                        <input
-                          id={`school-end-${card.id}`}
-                          name={`schools[${index}][end]`}
-                          type="month"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
             </section>
-
-            <a href="/resume/4" className="next-link">
-              次へ
-            </a>
           </div>,
           portalHost
         )}
