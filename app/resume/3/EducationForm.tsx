@@ -108,9 +108,8 @@ function prepareEducationPayload(items: EducationItem[]) {
 
 export default function EducationForm() {
   const router = useRouter();
-  const initialItems = useMemo(() => [{ ...defaultItem }], []);
-  const [items, setItems] = useState<EducationItem[]>(initialItems);
-  const itemsRef = useRef<EducationItem[]>(initialItems);
+  const [items, setItems] = useState<EducationItem[]>(() => [{ ...defaultItem }]);
+  const itemsRef = useRef<EducationItem[]>(items);
   const hasHydratedRef = useRef(false);
   const hasLocalEditsRef = useRef(false);
   const [rowErrors, setRowErrors] = useState<RowErrors>({});
@@ -166,22 +165,21 @@ export default function EducationForm() {
 
   const applyInitialItems = useCallback(
     (incoming: EducationItem[], snapshot: string | null) => {
-      const prepared =
+      const normalized =
         incoming.length > 0
           ? incoming.map((item) => ({ ...item }))
           : [{ ...defaultItem }];
 
-      if (!hasHydratedRef.current && !hasLocalEditsRef.current) {
-        itemsRef.current = prepared;
-        setItems(prepared);
-        hasHydratedRef.current = true;
-      } else if (!hasHydratedRef.current) {
-        hasHydratedRef.current = true;
+      if (!hasHydratedRef.current || !hasLocalEditsRef.current) {
+        const next = normalized.map((item) => ({ ...item }));
+        itemsRef.current = next;
+        setItems(next);
       }
 
+      hasHydratedRef.current = true;
       lastEducationSnapshotRef.current = snapshot;
     },
-    [setItems]
+    []
   );
 
   useEffect(() => {
@@ -376,14 +374,15 @@ export default function EducationForm() {
   }, 2000, { enabled: Boolean(autoSaveHighestPayload) && !isHydrating });
 
   const updateItems = useCallback(
-    (updater: (draft: EducationItem[]) => EducationItem[]) => {
+    (updater: (draft: EducationItem[]) => EducationItem[] | void) => {
       setItems((prev) => {
-        const draft = prev.map((item) => ({ ...item }));
-        const result = updater(draft);
-        const nextArray = Array.isArray(result) ? result : draft;
-        const final = [...nextArray];
+        const base = prev.map((item) => ({ ...item }));
+        const result = updater(base);
+        const nextArray = Array.isArray(result) ? result : base;
+        const final = nextArray.map((item) => ({ ...item }));
         itemsRef.current = final;
         hasLocalEditsRef.current = true;
+        hasHydratedRef.current = true;
         return final;
       });
     },
@@ -420,7 +419,10 @@ export default function EducationForm() {
   );
 
   const handleAddRow = useCallback(() => {
-    updateItems((draft) => [...draft, { ...defaultItem }]);
+    updateItems((draft) => {
+      const next = [...draft, { ...defaultItem }];
+      return next;
+    });
   }, [updateItems]);
 
   const handleRemoveRow = useCallback(
@@ -708,7 +710,7 @@ export default function EducationForm() {
             cursor: "pointer",
           }}
         >
-          学校を追加
+          ＋ 学校を追加
         </button>
       </div>
 
