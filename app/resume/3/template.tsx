@@ -14,7 +14,10 @@ const FINAL_EDUCATION_OPTIONS = [
 ] as const;
 
 type SchoolCard = { id: string };
-type EnsureResult = { form: HTMLFormElement; host: HTMLElement };
+type EnsureResult = {
+  form: HTMLFormElement;
+  host: HTMLElement;
+};
 
 export default function ResumeStep3Template({
   children,
@@ -26,6 +29,7 @@ export default function ResumeStep3Template({
   const observerRef = useRef<MutationObserver | null>(null);
   const formRef = useRef<HTMLFormElement | null>(null);
   const addButtonRef = useRef<HTMLButtonElement | null>(null);
+  const [hasNativeAddButton, setHasNativeAddButton] = useState(false);
 
   const syncCards = useCallback(() => {
     const form = formRef.current;
@@ -53,7 +57,8 @@ export default function ResumeStep3Template({
 
   const ensurePortalHost = useCallback((): EnsureResult | null => {
       const main = document.querySelector("main") ?? document.body;
-      const form = (main?.querySelector("form") as HTMLFormElement | null) ?? null;
+      const form =
+        (main?.querySelector("form") as HTMLFormElement | null) ?? null;
       if (!form) return null;
 
       formRef.current = form;
@@ -76,10 +81,11 @@ export default function ResumeStep3Template({
 
       if (nativeAddButton) {
         addButtonRef.current = nativeAddButton;
-        const container = nativeAddButton.parentElement as HTMLElement | null;
+        setHasNativeAddButton(true);
+        const container =
+          nativeAddButton.parentElement as HTMLElement | null;
         nativeAddButton.style.display = "none";
         if (container) {
-          container.style.display = "none";
           if (createdHost) {
             container.insertAdjacentElement("afterend", host);
           }
@@ -88,6 +94,7 @@ export default function ResumeStep3Template({
         }
       } else {
         addButtonRef.current = null;
+        setHasNativeAddButton(false);
         if (createdHost) {
           form.appendChild(host);
         }
@@ -109,52 +116,83 @@ export default function ResumeStep3Template({
   }, [syncCards]);
 
   useEffect(() => {
-    const ensured = ensurePortalHost();
-    if (!ensured) return;
-    const { form, host } = ensured;
-    queueMicrotask(() => setPortalHost(host));
-    queueMicrotask(syncCards);
+    let cancelled = false;
+    const timeouts = new Set<ReturnType<typeof setTimeout>>();
+    const MAX_ATTEMPTS = 5;
+    let attempt = 0;
 
-    if (observerRef.current) {
-      observerRef.current.disconnect();
-    }
+    const setupObserver = (form: HTMLFormElement) => {
+      if (observerRef.current) {
+        observerRef.current.disconnect();
+      }
 
-    observerRef.current = new MutationObserver(() => {
-      neutralizeGuards(form);
-      const existingHost = form.querySelector<HTMLElement>("#resume-step3-augment");
-      if (!existingHost) {
-        const refreshed = ensurePortalHost();
-        if (refreshed) {
-          queueMicrotask(() => setPortalHost(refreshed.host));
+      observerRef.current = new MutationObserver(() => {
+        neutralizeGuards(form);
+        const existingHost =
+          form.querySelector<HTMLElement>("#resume-step3-augment");
+        if (!existingHost) {
+          const refreshed = ensurePortalHost();
+          if (refreshed) {
+            queueMicrotask(() => setPortalHost(refreshed.host));
+          }
         }
-      }
-      const nativeAddButton = form.querySelector<HTMLButtonElement>(
-        "button[data-education-add]"
-      );
-      if (nativeAddButton) {
-        nativeAddButton.style.display = "none";
-        addButtonRef.current = nativeAddButton;
-      } else {
-        addButtonRef.current = null;
-      }
-      const finalEducationSection = form.querySelector(".final-education") as HTMLElement | null;
-      if (finalEducationSection) {
-        finalEducationSection.style.display = "none";
-      }
-      const stepNav = form.querySelector(".step-nav") as HTMLElement | null;
-      if (stepNav) {
-        stepNav.style.display = "none";
-      }
-      syncCards();
-    });
+        const nativeAddButton = form.querySelector<HTMLButtonElement>(
+          "button[data-education-add]"
+        );
+        if (nativeAddButton) {
+          nativeAddButton.style.display = "none";
+          addButtonRef.current = nativeAddButton;
+          setHasNativeAddButton(true);
+        } else {
+          addButtonRef.current = null;
+          setHasNativeAddButton(false);
+        }
+        const finalEducationSection = form.querySelector(
+          ".final-education"
+        ) as HTMLElement | null;
+        if (finalEducationSection) {
+          finalEducationSection.style.display = "none";
+        }
+        const stepNav = form.querySelector(".step-nav") as HTMLElement | null;
+        if (stepNav) {
+          stepNav.style.display = "none";
+        }
+        syncCards();
+      });
 
-    observerRef.current.observe(form, {
-      childList: true,
-      subtree: true,
-      attributes: true,
-    });
+      observerRef.current.observe(form, {
+        childList: true,
+        subtree: true,
+        attributes: true,
+      });
+    };
+
+    const tryEnsure = () => {
+      if (cancelled) return;
+      const ensured = ensurePortalHost();
+      if (!ensured) {
+        if (attempt < MAX_ATTEMPTS) {
+          attempt += 1;
+          const timeout = setTimeout(() => {
+            timeouts.delete(timeout);
+            tryEnsure();
+          }, 0);
+          timeouts.add(timeout);
+        }
+        return;
+      }
+
+      const { form, host } = ensured;
+      queueMicrotask(() => setPortalHost(host));
+      queueMicrotask(syncCards);
+      setupObserver(form);
+    };
+
+    tryEnsure();
 
     return () => {
+      cancelled = true;
+      timeouts.forEach((timeout) => clearTimeout(timeout));
       observerRef.current?.disconnect();
     };
   }, [ensurePortalHost, syncCards]);
@@ -172,9 +210,15 @@ export default function ResumeStep3Template({
   }, [portalHost]);
 
   const handleAddCard = () => {
-    if (addButtonRef.current) {
-      addButtonRef.current.click();
+    const form = formRef.current;
+    const nativeButton = form?.querySelector<HTMLButtonElement>(
+      "button[data-education-add]"
+    );
+
+    if (nativeButton) {
+      nativeButton.click();
       queueMicrotask(syncCards);
+      setTimeout(syncCards, 0);
       return;
     }
 
@@ -326,46 +370,54 @@ export default function ResumeStep3Template({
               <button type="button" className="add-button" onClick={handleAddCard}>
                 ＋ 学校を追加
               </button>
-              <div className="cards">
-                {cards.map((card, index) => (
-                  <div className="card" key={card.id}>
-                    <div className="field">
-                      <label htmlFor={`school-name-${card.id}`}>学校名</label>
-                      <input
-                        id={`school-name-${card.id}`}
-                        name={`schools[${index}][name]`}
-                        type="text"
-                      />
-                    </div>
-                    <div className="field">
-                      <label htmlFor={`school-dept-${card.id}`}>学部・学科</label>
-                      <input
-                        id={`school-dept-${card.id}`}
-                        name={`schools[${index}][department]`}
-                        type="text"
-                      />
-                    </div>
-                    <div className="field-row">
+              {!hasNativeAddButton && (
+                <div className="cards">
+                  {cards.map((card, index) => (
+                    <div className="card" key={card.id}>
                       <div className="field">
-                        <label htmlFor={`school-start-${card.id}`}>入学年月</label>
+                        <label htmlFor={`school-name-${card.id}`}>学校名</label>
                         <input
-                          id={`school-start-${card.id}`}
-                          name={`schools[${index}][start]`}
-                          type="month"
+                          id={`school-name-${card.id}`}
+                          name={`schools[${index}][name]`}
+                          type="text"
                         />
                       </div>
                       <div className="field">
-                        <label htmlFor={`school-end-${card.id}`}>卒業(予定)年月</label>
+                        <label htmlFor={`school-dept-${card.id}`}>
+                          学部・学科
+                        </label>
                         <input
-                          id={`school-end-${card.id}`}
-                          name={`schools[${index}][end]`}
-                          type="month"
+                          id={`school-dept-${card.id}`}
+                          name={`schools[${index}][department]`}
+                          type="text"
                         />
                       </div>
+                      <div className="field-row">
+                        <div className="field">
+                          <label htmlFor={`school-start-${card.id}`}>
+                            入学年月
+                          </label>
+                          <input
+                            id={`school-start-${card.id}`}
+                            name={`schools[${index}][start]`}
+                            type="month"
+                          />
+                        </div>
+                        <div className="field">
+                          <label htmlFor={`school-end-${card.id}`}>
+                            卒業(予定)年月
+                          </label>
+                          <input
+                            id={`school-end-${card.id}`}
+                            name={`schools[${index}][end]`}
+                            type="month"
+                          />
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              )}
             </section>
 
             <a href="/resume/4" className="next-link">
