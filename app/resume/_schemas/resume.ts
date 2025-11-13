@@ -1,14 +1,14 @@
 import { z } from "zod";
 
 export const Step1Schema = z.object({
-  fullName: z.string().min(1, "氏名は必須です"),
+  fullName: z.string().min(1),
   email: z.string().email("メール形式が不正です"),
   phone: z.string().optional(),
 });
 export type Step1 = z.infer<typeof Step1Schema>;
 
 export const Step2Schema = z.object({
-  status: z.enum(["employed", "seeking", "student", "other"], "ステータスは必須です"),
+  status: z.enum(["employed", "seeking", "student", "other"]),
   note: z.string().max(200, "200文字以内で入力してください").optional(),
 });
 export type Step2 = z.infer<typeof Step2Schema>;
@@ -19,7 +19,7 @@ const ym = z
 
 export const EducationItemSchema = z
   .object({
-    school: z.string().min(1, "学校名は必須です"),
+    school: z.string().min(1),
     degree: z.string().optional(),
     start: ym,
     end: ym.optional(),
@@ -33,14 +33,12 @@ export const EducationItemSchema = z
 
 export type EducationItem = z.infer<typeof EducationItemSchema>;
 
-export const EducationListSchema = z
-  .array(EducationItemSchema)
-  .min(1, "少なくとも1件の学歴を追加してください");
+export const EducationListSchema = z.array(EducationItemSchema).min(1);
 
 const tagValue = z
   .string()
   .trim()
-  .min(1, "1文字以上で入力してください")
+  .min(1)
   .max(50, "50文字以内で入力してください");
 
 const tagArray = z.array(tagValue).max(20, "タグは20件までです");
@@ -48,7 +46,7 @@ const tagArray = z.array(tagValue).max(20, "タグは20件までです");
 export const WorkItemSchema = z
   .object({
     id: z.string().optional(),
-    company: z.string().min(1, "会社名は必須です"),
+    company: z.string().min(1),
     title: z.string().max(120, "120文字以内で入力してください").optional(),
     startYm: ym,
     endYm: z.union([ym, z.literal(""), z.undefined()]).optional(),
@@ -72,9 +70,7 @@ export const WorkItemSchema = z
 
 export type WorkItem = z.infer<typeof WorkItemSchema>;
 
-export const WorkListSchema = z
-  .array(WorkItemSchema)
-  .min(1, "少なくとも1件の職歴を追加してください");
+export const WorkListSchema = z.array(WorkItemSchema).min(1);
 
 export const DesiredSchema = z.object({
   roles: tagArray.default([]),

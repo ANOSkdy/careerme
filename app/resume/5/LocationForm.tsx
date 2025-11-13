@@ -173,8 +173,6 @@ export default function LocationForm() {
   const router = useRouter();
   const [resumeId, setResumeId] = useState<string | null>(null);
   const [options, setOptions] = useState<Option[]>([]);
-  const [lookupError, setLookupError] = useState<string | null>(null);
-  const [loadError, setLoadError] = useState<string | null>(null);
   const [value, setValue] = useState<string>("");
   const [touched, setTouched] = useState(false);
   const [fieldError, setFieldError] = useState<string | null>(null);
@@ -182,7 +180,6 @@ export default function LocationForm() {
     "idle"
   );
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [submitError, setSubmitError] = useState<string | null>(null);
   const [roles, setRoles] = useState<string[]>([]);
   const [industries, setIndustries] = useState<string[]>([]);
   const [desiredReady, setDesiredReady] = useState(false);
@@ -219,7 +216,6 @@ export default function LocationForm() {
 
     async function loadLookups() {
       try {
-        setLookupError(null);
         const res = await fetch(`/api/data/lookups?type=prefectures`, {
           cache: "force-cache",
           signal: controller.signal,
@@ -230,15 +226,11 @@ export default function LocationForm() {
         const json = (await res.json()) as LookupResponse;
         if (cancelled) return;
         const normalized = normalizeOptions(json);
-        if (!normalized.length) {
-          setLookupError("勤務地の候補が取得できませんでした。");
-        }
         setOptions(normalized);
       } catch (error) {
         if ((error as Error).name === "AbortError") return;
         console.error("Failed to load prefecture lookups", error);
         if (!cancelled) {
-          setLookupError("勤務地の候補が取得できませんでした。時間をおいて再度お試しください。");
           setOptions([]);
         }
       }
@@ -260,7 +252,6 @@ export default function LocationForm() {
 
     async function loadPreferredLocation() {
       try {
-        setLoadError(null);
         const params = new URLSearchParams({ id, draftId: id });
         const res = await fetch(`/api/data/resume?${params.toString()}`, {
           cache: "no-store",
@@ -283,7 +274,6 @@ export default function LocationForm() {
         if ((error as Error).name === "AbortError") return;
         console.error("Failed to load preferred location", error);
         if (!cancelled) {
-          setLoadError("データの取得に失敗しました。時間をおいて再度お試しください。");
         }
       } finally {
         if (!cancelled) {
@@ -412,7 +402,6 @@ export default function LocationForm() {
     (event: ChangeEvent<HTMLSelectElement>) => {
       const nextValue = event.target.value;
       setValue(nextValue);
-      setSubmitError(null);
       if (touched) {
         const result = schema.safeParse({ preferredLocation: nextValue });
         if (result.success) {
@@ -427,12 +416,10 @@ export default function LocationForm() {
 
   const handleRolesChange = useCallback((next: string[]) => {
     setRoles(next);
-    setSubmitError(null);
   }, []);
 
   const handleIndustriesChange = useCallback((next: string[]) => {
     setIndustries(next);
-    setSubmitError(null);
   }, []);
 
   const handleBlur = useCallback(async () => {
@@ -452,7 +439,6 @@ export default function LocationForm() {
   }, [schema, touched, value, persist]);
 
   const submit = useCallback(async () => {
-    setSubmitError(null);
     setTouched(true);
     const result = schema.safeParse({ preferredLocation: value });
     if (!result.success) {
@@ -460,7 +446,6 @@ export default function LocationForm() {
       return;
     }
     if (!resumeId) {
-      setSubmitError("保存に必要なIDの取得に失敗しました。ページを再読み込みしてください。");
       return;
     }
     setFieldError(null);
@@ -472,13 +457,11 @@ export default function LocationForm() {
       ]);
       if (!locationSaved) {
         setIsSubmitting(false);
-        setSubmitError("保存に失敗しました。時間をおいて再度お試しください。");
         return;
       }
     } catch (error) {
       console.error("Failed to save desired conditions", error);
       setIsSubmitting(false);
-      setSubmitError("保存に失敗しました。時間をおいて再度お試しください。");
       return;
     }
     setIsSubmitting(false);
@@ -503,57 +486,15 @@ export default function LocationForm() {
 
   const nextDisabled = isSubmitting;
   const fieldErrorId = fieldError ? "preferredLocation-error" : undefined;
-  const loadErrorId = loadError ? "preferredLocation-load-error" : undefined;
-  const lookupErrorId = lookupError ? "preferredLocation-lookup-error" : undefined;
-  const submitErrorId = submitError ? "preferredLocation-submit-error" : undefined;
-  const describedBy = [fieldErrorId, lookupErrorId, loadErrorId]
-    .filter(Boolean)
-    .join(" ")
-    .trim() || undefined;
-  const formDescriptionIds = [loadErrorId, lookupErrorId, submitErrorId]
+  const describedBy = [fieldErrorId]
     .filter(Boolean)
     .join(" ")
     .trim() || undefined;
 
   return (
-    <form
-      onSubmit={handleSubmit}
-      style={{ display: "grid", gap: "24px" }}
-      aria-describedby={formDescriptionIds}
-      noValidate
-    >
+    <form onSubmit={handleSubmit} style={{ display: "grid", gap: "24px" }} noValidate>
       <div style={{ display: "grid", gap: "8px" }}>
         <h2 className="resume-page-title">希望勤務地</h2>
-        <p style={{ color: "var(--color-text-muted, #6b7280)", fontSize: "0.875rem" }}>
-          
-        </p>
-        {loadError && (
-          <p
-            id={loadErrorId}
-            role="alert"
-            style={{ color: "#dc2626", fontSize: "0.875rem" }}
-          >
-            {loadError}
-          </p>
-        )}
-        {lookupError && (
-          <p
-            id={lookupErrorId}
-            role="alert"
-            style={{ color: "#b45309", fontSize: "0.875rem" }}
-          >
-            {lookupError}
-          </p>
-        )}
-        {submitError && (
-          <p
-            id={submitErrorId}
-            role="alert"
-            style={{ color: "#dc2626", fontSize: "0.875rem" }}
-          >
-            {submitError}
-          </p>
-        )}
       </div>
 
       <div style={{ display: "grid", gap: "24px" }}>
@@ -603,16 +544,13 @@ export default function LocationForm() {
             >
               {saveStatus === "saving" && "自動保存中..."}
               {saveStatus === "saved" && "保存しました"}
-              {saveStatus === "error" && "自動保存に失敗しました。"}
             </p>
           )}
         </div>
 
         <div style={{ display: "grid", gap: "8px" }}>
           <h3 style={{ margin: 0, fontSize: "1rem", fontWeight: 600 }}>希望職種</h3>
-          <p style={{ fontSize: "0.8125rem", color: "var(--color-text-muted, #6b7280)" }}>
-            
-          </p>
+          
           <TagInput
             id="desired-roles"
             label="希望職種"
@@ -624,9 +562,7 @@ export default function LocationForm() {
 
         <div style={{ display: "grid", gap: "8px" }}>
           <h3 style={{ margin: 0, fontSize: "1rem", fontWeight: 600 }}>希望業界</h3>
-          <p style={{ fontSize: "0.8125rem", color: "var(--color-text-muted, #6b7280)" }}>
           
-          </p>
           <TagInput
             id="desired-industries"
             label="希望業界"

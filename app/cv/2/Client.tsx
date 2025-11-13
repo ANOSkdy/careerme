@@ -160,9 +160,7 @@ export default function Step2Client() {
       <h2 className="cv-kicker">自己PR</h2>
       <div className="cv-card" style={{ marginBottom: 16 }}>
         <h3>自己PRの生成</h3>
-        <p style={{ color: 'var(--cv-muted)', marginTop: 0, marginBottom: 16, lineHeight: 1.6 }}>
-          入力内容は自動保存され、AI生成時に最新の下書きIDを利用します。
-        </p>
+        
         <div className="cv-field">
           <label className="cv-label">Role</label>
           <input className="cv-input" value={role} onChange={(e) => setRole(e.target.value)} />
@@ -225,24 +223,22 @@ export default function Step2Client() {
           </Link>
         </div>
         <div className="summary-status" role="status" aria-live="polite">
-          {saved === null && !isPending && <span style={{ color: 'var(--cv-muted)' }}>Airtable へ保存済みの自己PRをプレビューできます。</span>}
+          {saved === null && !isPending && null}
           {isPending && <span>AI が出力しています…</span>}
           {saved === true && !isPending && <span style={{ color: '#0a0' }}>Airtable に保存しました。</span>}
-          {saved === false && !isPending && (
-            <span style={{ color: '#b00' }}>保存に失敗しました（Airtable 側をご確認ください）。</span>
-          )}
+          {saved === false && !isPending && null}
         </div>
       </div>
       {result && (
         <div className="cv-card" style={{ marginBottom: 16 }}>
           <h3>生成結果（この画面の反映）</h3>
           <p style={{ whiteSpace: 'pre-wrap', lineHeight: 1.6 }}>{result}</p>
-          <div style={{ marginTop: 8, color: saved ? '#0a0' : 'var(--cv-muted)' }}>
+          <div style={{ marginTop: 8, color: saved ? '#0a0' : '#555' }}>
             {saved === null
               ? '生成結果はAirtableへの保存を確認しています…'
               : saved
                 ? 'Airtable に保存しました。'
-                : '保存に失敗しました（リトライしてください）。'}
+                : ''}
           </div>
         </div>
       )}

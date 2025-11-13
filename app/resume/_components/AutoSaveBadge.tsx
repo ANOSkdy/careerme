@@ -7,8 +7,6 @@ export default function AutoSaveBadge({ state }: { state: SaveState }) {
       ? "保存中…"
       : state === "saved"
       ? "保存しました"
-      : state === "error"
-      ? "保存に失敗しました"
       : "";
 
   if (!label) return null;

@@ -126,23 +126,15 @@ export default function Step3Client() {
         <div className="summary-actions" data-print-hidden="true">
           <div className="cv-card" style={{ marginBottom: 16 }}>
             <h3>AIで職務要約を作成</h3>
-            <p style={{ color: 'var(--cv-muted)', marginTop: 0, marginBottom: 16, lineHeight: 1.6 }}>
-              これまでに入力した内容をもとに AI が職務要約を生成します。生成後は自動的に下書きとして保存されます。
-            </p>
+            
             <button className="cv-btn summary-ai-button" onClick={doGenerate} disabled={isPending}>
               {isPending ? '生成中…' : 'AIで出力'}
             </button>
             <div className="summary-status" role="status" aria-live="polite">
-              {saved === null && !isPending && (
-                <span style={{ color: 'var(--cv-muted)' }}>
-                  Airtable へ保存された最新の要約をプレビューで確認できます。
-                </span>
-              )}
+              {saved === null && !isPending && null}
               {isPending && <span>AI が出力しています…</span>}
               {saved === true && !isPending && <span style={{ color: '#0a0' }}>Airtable に保存しました。</span>}
-              {saved === false && !isPending && (
-                <span style={{ color: '#b00' }}>保存に失敗しました（Airtable 側をご確認ください）。</span>
-              )}
+              {saved === false && !isPending && null}
             </div>
             <div className="cv-row" style={{ marginTop: 20, gap: 12 }}>
               <Link href="/cv/2">
@@ -225,7 +217,7 @@ export default function Step3Client() {
 
         .summary-preview__placeholder {
           margin: 0;
-          color: var(--cv-muted);
+          color: #555;
           line-height: 1.6;
         }
 
