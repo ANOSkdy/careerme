@@ -35,6 +35,7 @@ type ResumeResponse = {
 
 const STORAGE_KEY = "resume.resumeId";
 const ERROR_MESSAGE = "希望勤務地を選択してください";
+const NEXT_STEP_HREF = "/cv/2";
 
 type DesiredSnapshot = {
   preferredLocation: string | null;
@@ -465,8 +466,16 @@ export default function LocationForm() {
       return;
     }
     setIsSubmitting(false);
-    router.push("/cv/2");
-  }, [schema, value, resumeId, persist, router, saveDesired, desiredPayload]);
+    router.push(NEXT_STEP_HREF);
+  }, [
+    schema,
+    value,
+    resumeId,
+    persist,
+    router,
+    saveDesired,
+    desiredPayload,
+  ]);
 
   const handleSubmit = useCallback(
     (event: FormEvent<HTMLFormElement>) => {
@@ -578,7 +587,7 @@ export default function LocationForm() {
       <StepNav
         step={5}
         nextType="link"
-        nextHref="/cv/2"
+        nextHref={NEXT_STEP_HREF}
         nextDisabled={nextDisabled}
         nextLabel={isSubmitting ? "保存中..." : "次へ"}
         onNextClick={handleNextClick}
