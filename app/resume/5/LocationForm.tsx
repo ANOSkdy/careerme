@@ -1,6 +1,4 @@
 "use client";
-
-import { useRouter } from "next/navigation";
 import {
   useCallback,
   useEffect,
@@ -8,7 +6,7 @@ import {
   useRef,
   useState,
 } from "react";
-import type { ChangeEvent, FormEvent, MouseEvent } from "react";
+import type { ChangeEvent, FormEvent } from "react";
 
 import type { ZodError } from "zod";
 
@@ -171,7 +169,6 @@ function normalizeOptions(payload: LookupResponse): Option[] {
 }
 
 export default function LocationForm() {
-  const router = useRouter();
   const [resumeId, setResumeId] = useState<string | null>(null);
   const [options, setOptions] = useState<Option[]>([]);
   const [value, setValue] = useState<string>("");
@@ -180,7 +177,6 @@ export default function LocationForm() {
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">(
     "idle"
   );
-  const [isSubmitting, setIsSubmitting] = useState(false);
   const [roles, setRoles] = useState<string[]>([]);
   const [industries, setIndustries] = useState<string[]>([]);
   const [desiredReady, setDesiredReady] = useState(false);
@@ -439,61 +435,9 @@ export default function LocationForm() {
     }
   }, [schema, touched, value, persist]);
 
-  const submit = useCallback(async () => {
-    setTouched(true);
-    const result = schema.safeParse({ preferredLocation: value });
-    if (!result.success) {
-      setFieldError(extractValidationMessage(result.error));
-      return;
-    }
-    if (!resumeId) {
-      return;
-    }
-    setFieldError(null);
-    setIsSubmitting(true);
-    try {
-      const [locationSaved] = await Promise.all([
-        persist(result.data.preferredLocation, { silent: true }),
-        saveDesired(desiredPayload),
-      ]);
-      if (!locationSaved) {
-        setIsSubmitting(false);
-        return;
-      }
-    } catch (error) {
-      console.error("Failed to save desired conditions", error);
-      setIsSubmitting(false);
-      return;
-    }
-    setIsSubmitting(false);
-    router.push(NEXT_STEP_HREF);
-  }, [
-    schema,
-    value,
-    resumeId,
-    persist,
-    router,
-    saveDesired,
-    desiredPayload,
-  ]);
-
-  const handleSubmit = useCallback(
-    (event: FormEvent<HTMLFormElement>) => {
-      event.preventDefault();
-      void submit();
-    },
-    [submit]
-  );
-
-  const handleNextClick = useCallback(
-    async (event: MouseEvent<HTMLAnchorElement | HTMLButtonElement>) => {
-      event.preventDefault();
-      await submit();
-    },
-    [submit]
-  );
-
-  const nextDisabled = isSubmitting;
+  const handleSubmit = useCallback((event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+  }, []);
   const fieldErrorId = fieldError ? "preferredLocation-error" : undefined;
   const describedBy = [fieldErrorId]
     .filter(Boolean)
@@ -584,14 +528,7 @@ export default function LocationForm() {
         <AutoSaveBadge state={desiredAutoSaveState} />
       </div>
 
-      <StepNav
-        step={5}
-        nextType="link"
-        nextHref={NEXT_STEP_HREF}
-        nextDisabled={nextDisabled}
-        nextLabel={isSubmitting ? "保存中..." : "次へ"}
-        onNextClick={handleNextClick}
-      />
+      <StepNav step={5} nextType="link" nextHref={NEXT_STEP_HREF} />
     </form>
   );
 }
