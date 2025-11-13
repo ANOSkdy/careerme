@@ -110,7 +110,6 @@ export default function PRWizard() {
   const [touched, setTouched] = useState<Record<QuestionKey, boolean>>(EMPTY_TOUCHED);
   const [errors, setErrors] = useState<Record<QuestionKey, string | undefined>>(EMPTY_ERRORS);
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
-  const [saveError, setSaveError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isGenerating, setIsGenerating] = useState(false);
   const [toast, setToast] = useState<ToastState | null>(null);
@@ -215,13 +214,11 @@ export default function PRWizard() {
         }
 
         setSaveStatus('idle');
-        setSaveError(null);
       } catch (error) {
         if ((error as Error).name !== 'AbortError') {
           console.error('Failed to load resume QA', error);
-          setToast({ message: '保存済みの回答を取得できませんでした。', variant: 'error' });
+          setToast(null);
           setSaveStatus('error');
-          setSaveError('読み込みに失敗しました。時間をおいて再試行してください。');
           setQa(EMPTY_QA);
           qaRef.current = EMPTY_QA;
           lastSavedSnapshot.current = JSON.stringify(sanitizeQa(EMPTY_QA));
@@ -254,12 +251,10 @@ export default function PRWizard() {
       const ensuredId = await ensureResumeId();
       if (!ensuredId) {
         setSaveStatus('error');
-        setSaveError('IDの確保に失敗しました。時間をおいて再試行してください。');
         return false;
       }
 
       setSaveStatus('saving');
-      setSaveError(null);
       try {
         const res = await fetch('/api/data/resume', {
           method: 'POST',
@@ -279,7 +274,6 @@ export default function PRWizard() {
       } catch (error) {
         console.error('Failed to save QA', error);
         setSaveStatus('error');
-        setSaveError('保存に失敗しました。時間をおいて再試行してください。');
         return false;
       }
     },
@@ -391,9 +385,7 @@ export default function PRWizard() {
   return (
     <section>
       <h2 className="cv-kicker">自己PR – Q&amp;A</h2>
-      <p style={{ color: '#555', marginBottom: 12, fontSize: 12 }}>
-        回答はフォーカスを外したタイミングとステップ移動時に自動保存されます。
-      </p>
+      
       <div className="cv-card" style={{ marginBottom: 16 }}>
         {isLoading ? <p style={{ marginBottom: 16 }}>読み込み中です…</p> : null}
         {QUESTIONS.map(({ key, label, description, placeholder }) => {
@@ -450,9 +442,7 @@ export default function PRWizard() {
         <div role="status" aria-live="polite" style={{ fontSize: 12, marginTop: 12 }}>
           {saveStatus === 'saving' && <span>保存中…</span>}
           {saveStatus === 'saved' && <span style={{ color: '#0a7' }}>保存しました。</span>}
-          {saveStatus === 'error' && (
-            <span style={{ color: '#b20000' }}>{saveError ?? '保存に失敗しました。'}</span>
-          )}
+          {saveStatus === 'error' && null}
         </div>
       </div>
       {toast ? (

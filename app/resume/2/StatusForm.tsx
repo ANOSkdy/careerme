@@ -76,7 +76,6 @@ export default function StatusForm() {
     jobChangeCount: false,
   });
   const [saveState, setSaveState] = useState<SaveState>("idle");
-  const [loadError, setLoadError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<Partial<Record<FieldKey, string>>>({});
@@ -127,7 +126,7 @@ export default function StatusForm() {
         if ((error as Error).name !== "AbortError") {
           console.error("Failed to load resume status", error);
           if (!cancelled) {
-            setLoadError("データの取得に失敗しました");
+            
           }
         }
       } finally {
@@ -268,21 +267,9 @@ export default function StatusForm() {
   const nextDisabled = !parsed.success || isLoading || isSubmitting;
 
   return (
-    <form onSubmit={handleSubmit} aria-describedby={loadError ? "status-load-error" : undefined}>
+    <form onSubmit={handleSubmit}>
       <div style={{ marginBottom: "24px" }}>
         <h2 className="resume-page-title">就学状況</h2>
-        <p style={{ color: "var(--color-text-muted, #6b7280)", fontSize: "0.875rem" }}>
-          入力内容は2秒後に自動保存されます。ページ移動時にも保存されます。
-        </p>
-        {loadError && (
-          <p
-            id="status-load-error"
-            role="alert"
-            style={{ marginTop: "8px", color: "#dc2626", fontSize: "0.875rem" }}
-          >
-            {loadError}
-          </p>
-        )}
       </div>
 
       <div style={{ display: "grid", gap: "20px" }}>

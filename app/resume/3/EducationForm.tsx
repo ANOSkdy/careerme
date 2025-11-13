@@ -122,7 +122,6 @@ export default function EducationForm() {
   const [finalSaveState, setFinalSaveState] = useState<SaveState>("idle");
   const [isHydrating, setIsHydrating] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [submitError, setSubmitError] = useState<string | null>(null);
 
   useEffect(() => {
     resumeIdRef.current = resumeId;
@@ -220,7 +219,7 @@ export default function EducationForm() {
       } catch (error) {
         if (!cancelled) {
           console.error("Failed to load education data", error);
-          setLoadError("学歴情報の取得に失敗しました");
+          setLoadError(null);
         }
       } finally {
         if (!cancelled) {
@@ -420,8 +419,6 @@ export default function EducationForm() {
   const handleSubmit = useCallback(
     async (event: FormEvent<HTMLFormElement>) => {
       event.preventDefault();
-      setSubmitError(null);
-
       if (!listValidation.success) {
         return;
       }
@@ -444,7 +441,6 @@ export default function EducationForm() {
         router.push("/resume/4");
       } catch (error) {
         console.error("Failed to submit education form", error);
-        setSubmitError("保存に失敗しました。時間をおいて再度お試しください。");
       }
     },
     [finalEducation, listValidation, router, saveEducation, saveHighestEducation]
@@ -454,28 +450,13 @@ export default function EducationForm() {
     <form onSubmit={handleSubmit} aria-describedby={infoMessage ? "education-status" : undefined}>
       <div style={{ marginBottom: "24px" }}>
         <h2 className="resume-page-title">学歴</h2>
-        <p style={{ fontSize: "0.875rem", color: "var(--color-text-muted, #6b7280)" }}>
-          在籍期間と学校名を入力してください。入力内容は2秒後に自動保存されます。
-        </p>
         {infoMessage && (
           <p
             id="education-status"
             role={loadError ? "alert" : "status"}
-            style={{ marginTop: "8px", fontSize: "0.875rem", color: loadError ? "#dc2626" : "#6b7280" }}
+            style={{ marginTop: "8px", fontSize: "0.875rem", color: loadError ? "#dc2626" : "#555" }}
           >
             {infoMessage}
-          </p>
-        )}
-        {submitError && (
-          <p
-            role="alert"
-            style={{
-              marginTop: "12px",
-              color: "#dc2626",
-              fontSize: "0.875rem",
-            }}
-          >
-            {submitError}
           </p>
         )}
         {listError && !isHydrating && (
@@ -519,7 +500,6 @@ export default function EducationForm() {
           <p style={{ marginTop: "8px", fontSize: "0.75rem", color: "var(--color-secondary, #6b7280)" }}>
             {finalSaveState === "saving" && "最終学歴を保存中…"}
             {finalSaveState === "saved" && "最終学歴を保存しました"}
-            {finalSaveState === "error" && "最終学歴の保存に失敗しました"}
           </p>
         )}
       </div>

@@ -151,7 +151,6 @@ export default function ExperienceForm() {
     experiences: [{ ...emptyRow }],
     certifications: [],
   });
-  const [loadError, setLoadError] = useState<string | null>(null);
   const [certificationOptions, setCertificationOptions] = useState<
     CertificationOption[]
   >([]);
@@ -309,7 +308,6 @@ export default function ExperienceForm() {
   );
 
   const handleLoad = useCallback(async (id: string) => {
-    setLoadError(null);
     setHasLoaded(false);
     try {
       const [experienceRes, resumeRes, lookupRes] = await Promise.all([
@@ -360,9 +358,6 @@ export default function ExperienceForm() {
       setHasLoaded(true);
     } catch (error) {
       console.error("Failed to load experience step", error);
-      setLoadError(
-        "データの取得に失敗しました。時間をおいて再度お試しください。"
-      );
       setFormValues({ experiences: [{ ...emptyRow }], certifications: [] });
       setCertificationOptions([]);
       lastSavedExperiencesRef.current = "";
@@ -574,9 +569,8 @@ export default function ExperienceForm() {
   );
 
   const isNextDisabled = !validation.isValid || isSubmitting;
-  const loadErrorId = loadError ? "experience-load-error" : undefined;
   const listErrorId = listError ? "experience-list-error" : undefined;
-  const formDescriptionIds = [loadErrorId, listErrorId]
+  const formDescriptionIds = [listErrorId]
     .filter(Boolean)
     .join(" ")
     .trim() || undefined;
@@ -589,18 +583,6 @@ export default function ExperienceForm() {
     >
       <header style={{ display: "grid", gap: "8px" }}>
         <h2 className="resume-page-title">職歴</h2>
-        <p style={{ color: "var(--color-text-muted, #6b7280)", fontSize: "0.875rem" }}>
-          これまでの職歴を入力してください。現在の職務に在籍中の場合は「在籍中」にチェックを入れてください。
-        </p>
-        {loadError && (
-          <p
-            id={loadErrorId}
-            role="alert"
-            style={{ color: "#dc2626", fontSize: "0.875rem" }}
-          >
-            {loadError}
-          </p>
-        )}
       </header>
 
       {listError && (
@@ -909,9 +891,6 @@ export default function ExperienceForm() {
 
       <section style={{ display: "grid", gap: "12px" }}>
         <h3 style={{ margin: 0, fontSize: "1rem", fontWeight: 600 }}>資格</h3>
-        <p style={{ fontSize: "0.875rem", color: "var(--color-text-muted, #6b7280)" }}>
-          取得済みの資格を選択してください。複数選択できます。
-        </p>
 
         <div style={{ display: "grid", gap: "8px" }}>
           <label

@@ -89,7 +89,6 @@ export default function BasicInfoForm() {
   const [form, setForm] = useState<FormState>(initialForm);
   const [isLoading, setIsLoading] = useState(true);
   const [saveState, setSaveState] = useState<SaveState>("idle");
-  const [saveError, setSaveError] = useState<string | null>(null);
   const lastSavedSnapshotRef = useRef<string | null>(null);
   const ensureIdPromiseRef = useRef<Promise<string | null> | null>(null);
 
@@ -206,12 +205,10 @@ export default function BasicInfoForm() {
       const ensuredId = await ensureResumeId();
       if (!ensuredId) {
         setSaveState("error");
-        setSaveError("IDの確保に失敗しました。時間をおいて再度お試しください。");
         return false;
       }
 
       setSaveState("saving");
-      setSaveError(null);
       try {
         const res = await fetch("/api/data/resume", {
           method: "POST",
@@ -233,7 +230,6 @@ export default function BasicInfoForm() {
       } catch (error) {
         console.error("Failed to save basic info", error);
         setSaveState("error");
-        setSaveError("保存に失敗しました。時間をおいて再試行してください。");
         return false;
       }
     },
@@ -443,10 +439,6 @@ export default function BasicInfoForm() {
       >
         {saveState === "saving" && "保存中…"}
         {saveState === "saved" && "保存しました"}
-        {saveState === "error" && "保存に失敗しました"}
-        {saveError && (
-          <span style={{ display: "block", marginTop: "4px", color: "#dc2626" }}>{saveError}</span>
-        )}
       </div>
 
       <div>
