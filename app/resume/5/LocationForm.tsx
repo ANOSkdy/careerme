@@ -14,12 +14,31 @@ import type { ZodError } from "zod";
 
 import { createPreferredLocationSchema } from "../../../lib/validation/schemas";
 import AutoSaveBadge from "../_components/AutoSaveBadge";
-import TagInput from "../_components/TagInput";
 import { useAutoSave } from "../_components/hooks/useAutoSave";
 import { DesiredSchema } from "../_schemas/resume";
 import StepNav from "../_components/StepNav";
 
 type Option = { value: string; label: string };
+
+const ROLE_PRESET_OPTIONS: Option[] = [
+  { value: "営業", label: "営業" },
+  { value: "マーケティング", label: "マーケティング" },
+  { value: "プロダクトマネージャー", label: "プロダクトマネージャー" },
+  { value: "カスタマーサクセス", label: "カスタマーサクセス" },
+  { value: "コンサルタント", label: "コンサルタント" },
+  { value: "バックオフィス", label: "バックオフィス" },
+  { value: "ソフトウェアエンジニア", label: "ソフトウェアエンジニア" },
+];
+
+const INDUSTRY_PRESET_OPTIONS: Option[] = [
+  { value: "IT・ソフトウェア", label: "IT・ソフトウェア" },
+  { value: "SaaS", label: "SaaS" },
+  { value: "金融", label: "金融" },
+  { value: "コンサルティング", label: "コンサルティング" },
+  { value: "人材", label: "人材" },
+  { value: "ヘルスケア", label: "ヘルスケア" },
+  { value: "製造", label: "製造" },
+];
 
 type LookupResponse = {
   options?: Array<{ value?: string; label?: string } | string>;
@@ -35,6 +54,7 @@ type ResumeResponse = {
 
 const STORAGE_KEY = "resume.resumeId";
 const ERROR_MESSAGE = "希望勤務地を選択してください";
+const NEXT_PAGE_PATH = "/cv/2";
 
 type DesiredSnapshot = {
   preferredLocation: string | null;
@@ -80,6 +100,22 @@ function uniqueTags(values: readonly string[] | undefined): string[] {
     normalized.push(trimmed);
   }
   return normalized;
+}
+
+function extendOptions(base: Option[], values: readonly string[]): Option[] {
+  if (!Array.isArray(values) || values.length === 0) {
+    return base;
+  }
+  const seen = new Set(base.map((option) => option.value));
+  const extended = [...base];
+  for (const raw of values) {
+    if (typeof raw !== "string") continue;
+    const value = raw.trim();
+    if (!value || seen.has(value)) continue;
+    seen.add(value);
+    extended.push({ value, label: value });
+  }
+  return extended;
 }
 
 function extractDesiredSnapshot(
@@ -182,6 +218,10 @@ export default function LocationForm() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [roles, setRoles] = useState<string[]>([]);
   const [industries, setIndustries] = useState<string[]>([]);
+  const [roleOptions, setRoleOptions] = useState<Option[]>(ROLE_PRESET_OPTIONS);
+  const [industryOptions, setIndustryOptions] = useState<Option[]>(
+    INDUSTRY_PRESET_OPTIONS
+  );
   const [desiredReady, setDesiredReady] = useState(false);
 
   const lastSavedRef = useRef<string | null>(null);
@@ -268,6 +308,8 @@ export default function LocationForm() {
           setValue(snapshot.preferredLocation);
           lastSavedRef.current = snapshot.preferredLocation;
         }
+        setRoleOptions((current) => extendOptions(current, snapshot.roles));
+        setIndustryOptions((current) => extendOptions(current, snapshot.industries));
         setRoles(snapshot.roles);
         setIndustries(snapshot.industries);
       } catch (error) {
@@ -414,13 +456,21 @@ export default function LocationForm() {
     [schema, touched]
   );
 
-  const handleRolesChange = useCallback((next: string[]) => {
-    setRoles(next);
-  }, []);
+  const handleRolesSelectChange = useCallback(
+    (event: ChangeEvent<HTMLSelectElement>) => {
+      const selected = Array.from(event.target.selectedOptions, (option) => option.value);
+      setRoles(selected);
+    },
+    []
+  );
 
-  const handleIndustriesChange = useCallback((next: string[]) => {
-    setIndustries(next);
-  }, []);
+  const handleIndustriesSelectChange = useCallback(
+    (event: ChangeEvent<HTMLSelectElement>) => {
+      const selected = Array.from(event.target.selectedOptions, (option) => option.value);
+      setIndustries(selected);
+    },
+    []
+  );
 
   const handleBlur = useCallback(async () => {
     if (!touched) {
@@ -465,7 +515,7 @@ export default function LocationForm() {
       return;
     }
     setIsSubmitting(false);
-    router.push("/cv/2");
+    router.push(NEXT_PAGE_PATH);
   }, [schema, value, resumeId, persist, router, saveDesired, desiredPayload]);
 
   const handleSubmit = useCallback(
@@ -549,27 +599,73 @@ export default function LocationForm() {
         </div>
 
         <div style={{ display: "grid", gap: "8px" }}>
-          <h3 style={{ margin: 0, fontSize: "1rem", fontWeight: 600 }}>希望職種</h3>
-          
-          <TagInput
+          <label htmlFor="desired-roles" style={{ fontWeight: 600 }}>
+            希望職種
+          </label>
+          <p
+            style={{
+              margin: 0,
+              fontSize: "0.8125rem",
+              color: "#6b7280",
+            }}
+          >
+            Windows の場合は Ctrl、Mac の場合は ⌘ を押しながらクリックすると複数選択できます。
+          </p>
+          <select
             id="desired-roles"
-            label="希望職種"
+            multiple
             value={roles}
-            onChange={handleRolesChange}
-            placeholder="例）マーケティング、ITコンサル、カスタマーサクセス"
-          />
+            onChange={handleRolesSelectChange}
+            style={{
+              minHeight: "160px",
+              borderRadius: "8px",
+              border: "1px solid var(--color-border, #d1d5db)",
+              padding: "10px",
+              fontSize: "1rem",
+              backgroundColor: "#fff",
+            }}
+          >
+            {roleOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
         </div>
 
         <div style={{ display: "grid", gap: "8px" }}>
-          <h3 style={{ margin: 0, fontSize: "1rem", fontWeight: 600 }}>希望業界</h3>
-          
-          <TagInput
+          <label htmlFor="desired-industries" style={{ fontWeight: 600 }}>
+            希望業界
+          </label>
+          <p
+            style={{
+              margin: 0,
+              fontSize: "0.8125rem",
+              color: "#6b7280",
+            }}
+          >
+            Windows の場合は Ctrl、Mac の場合は ⌘ を押しながらクリックすると複数選択できます。
+          </p>
+          <select
             id="desired-industries"
-            label="希望業界"
+            multiple
             value={industries}
-            onChange={handleIndustriesChange}
-            placeholder="例）SaaS、金融、ヘルスケア"
-          />
+            onChange={handleIndustriesSelectChange}
+            style={{
+              minHeight: "160px",
+              borderRadius: "8px",
+              border: "1px solid var(--color-border, #d1d5db)",
+              padding: "10px",
+              fontSize: "1rem",
+              backgroundColor: "#fff",
+            }}
+          >
+            {industryOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
         </div>
 
         <AutoSaveBadge state={desiredAutoSaveState} />
@@ -578,7 +674,7 @@ export default function LocationForm() {
       <StepNav
         step={5}
         nextType="link"
-        nextHref="/cv/2"
+        nextHref={NEXT_PAGE_PATH}
         nextDisabled={nextDisabled}
         nextLabel={isSubmitting ? "保存中..." : "次へ"}
         onNextClick={handleNextClick}
