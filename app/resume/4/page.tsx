@@ -55,110 +55,201 @@ export default function ResumeStep4Page() {
   };
 
   return (
-    <div className="resume-step">
-      <h1 className="resume-step__title">職歴</h1>
-      <p className="resume-step__description">これまでのご経験を入力してください。</p>
-      <form className="resume-form" onSubmit={(event) => event.preventDefault()} noValidate>
-        <div className="work-list">
-          {rows.map((row, index) => (
-            <fieldset key={row.key} className="work-entry">
-              <legend className="work-entry__legend">職歴 {index + 1}</legend>
-              <div className="form-field">
-                <label htmlFor={`company-${row.key}`} className="form-label">
-                  会社名
-                </label>
+    <form onSubmit={(event) => event.preventDefault()} noValidate style={{ display: "grid", gap: "24px" }}>
+      <div>
+        <h2 className="resume-page-title">職歴</h2>
+        <p style={{ marginTop: "4px", fontSize: "0.95rem", color: "var(--color-muted, #6b7280)" }}>
+          これまでのご経験を入力してください。
+        </p>
+      </div>
+
+      <div style={{ display: "grid", gap: "16px" }}>
+        {rows.map((row, index) => (
+          <div
+            key={row.key}
+            style={{
+              border: "1px solid var(--color-border, #d1d5db)",
+              borderRadius: "12px",
+              padding: "16px",
+              display: "grid",
+              gap: "12px",
+              backgroundColor: "#ffffff",
+            }}
+          >
+            <p style={{ fontWeight: 600, color: "var(--color-text-strong, #111827)" }}>
+              職歴 {index + 1}
+            </p>
+
+            <label style={{ display: "grid", gap: "4px", fontWeight: 600 }}>
+              会社名
+              <input
+                id={`company-${row.key}`}
+                name={`company-${row.key}`}
+                type="text"
+                value={row.company}
+                onChange={(event) => updateRow(index, "company", event.target.value)}
+                placeholder="株式会社キャリミー"
+                autoComplete="organization"
+                style={{
+                  width: "100%",
+                  borderRadius: "8px",
+                  border: "1px solid var(--color-border, #d1d5db)",
+                  padding: "10px 12px",
+                }}
+              />
+            </label>
+
+            <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
+              <label
+                style={{
+                  flex: 1,
+                  minWidth: "140px",
+                  display: "grid",
+                  gap: "4px",
+                  fontWeight: 600,
+                }}
+              >
+                部署
                 <input
-                  id={`company-${row.key}`}
-                  name={`company-${row.key}`}
+                  id={`division-${row.key}`}
                   type="text"
-                  value={row.company}
-                  onChange={(event) => updateRow(index, "company", event.target.value)}
-                  className="form-input"
-                  placeholder="株式会社キャリミー"
-                  autoComplete="organization"
+                  value={row.division}
+                  onChange={(event) => updateRow(index, "division", event.target.value)}
+                  placeholder="プロダクト本部"
+                  style={{
+                    width: "100%",
+                    borderRadius: "8px",
+                    border: "1px solid var(--color-border, #d1d5db)",
+                    padding: "10px 12px",
+                  }}
                 />
-              </div>
-              <div className="form-field-grid">
-                <div className="form-field">
-                  <label htmlFor={`division-${row.key}`} className="form-label">
-                    部署
-                  </label>
-                  <input
-                    id={`division-${row.key}`}
-                    type="text"
-                    value={row.division}
-                    onChange={(event) => updateRow(index, "division", event.target.value)}
-                    placeholder="プロダクト本部"
-                    className="form-input"
-                  />
-                </div>
-                <div className="form-field">
-                  <label htmlFor={`title-${row.key}`} className="form-label">
-                    役職
-                  </label>
-                  <input
-                    id={`title-${row.key}`}
-                    type="text"
-                    value={row.title}
-                    onChange={(event) => updateRow(index, "title", event.target.value)}
-                    placeholder="プロジェクトマネージャー"
-                    className="form-input"
-                  />
-                </div>
-              </div>
-              <div className="form-field-grid">
-                <div className="form-field">
-                  <label htmlFor={`start-${row.key}`} className="form-label">
-                    入社年月
-                  </label>
-                  <MonthYearSelect
-                    id={`start-${row.key}`}
-                    value={row.startYm}
-                    onChange={(value) => updateRow(index, "startYm", value)}
-                  />
-                </div>
-                <div className="form-field">
-                  <label htmlFor={`end-${row.key}`} className="form-label">
-                    退社年月
-                  </label>
-                  <MonthYearSelect
-                    id={`end-${row.key}`}
-                    value={row.endYm}
-                    onChange={(value) => updateRow(index, "endYm", value)}
-                  />
-                </div>
-              </div>
-              <div className="form-field">
-                <label htmlFor={`description-${row.key}`} className="form-label">
-                  業務内容
-                </label>
-                <textarea
-                  id={`description-${row.key}`}
-                  value={row.description}
-                  onChange={(event) => updateRow(index, "description", event.target.value)}
-                  className="form-textarea"
-                  placeholder="担当業務や成果などを記載してください"
-                  rows={5}
+              </label>
+              <label
+                style={{
+                  flex: 1,
+                  minWidth: "140px",
+                  display: "grid",
+                  gap: "4px",
+                  fontWeight: 600,
+                }}
+              >
+                役職
+                <input
+                  id={`title-${row.key}`}
+                  type="text"
+                  value={row.title}
+                  onChange={(event) => updateRow(index, "title", event.target.value)}
+                  placeholder="プロジェクトマネージャー"
+                  style={{
+                    width: "100%",
+                    borderRadius: "8px",
+                    border: "1px solid var(--color-border, #d1d5db)",
+                    padding: "10px 12px",
+                  }}
                 />
-              </div>
-              <div className="work-entry__actions">
-                <button
-                  type="button"
-                  className="button button--ghost"
-                  onClick={() => handleRemoveRow(index)}
-                  disabled={rows.length <= 1}
-                >
-                  削除
-                </button>
-              </div>
-            </fieldset>
-          ))}
-        </div>
-        <div className="work-actions">
-          <button type="button" className="button button--secondary" onClick={handleAddRow}>
-            ＋ 職歴を追加
-          </button>
-        </div>
+              </label>
+            </div>
+
+            <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
+              <label
+                style={{
+                  flex: 1,
+                  minWidth: "140px",
+                  display: "grid",
+                  gap: "4px",
+                  fontWeight: 600,
+                }}
+              >
+                入社年月
+                <MonthYearSelect
+                  id={`start-${row.key}`}
+                  value={row.startYm}
+                  onChange={(value) => updateRow(index, "startYm", value)}
+                />
+              </label>
+              <label
+                style={{
+                  flex: 1,
+                  minWidth: "140px",
+                  display: "grid",
+                  gap: "4px",
+                  fontWeight: 600,
+                }}
+              >
+                退社年月
+                <MonthYearSelect
+                  id={`end-${row.key}`}
+                  value={row.endYm}
+                  onChange={(value) => updateRow(index, "endYm", value)}
+                />
+              </label>
+            </div>
+
+            <label style={{ display: "grid", gap: "4px", fontWeight: 600 }}>
+              業務内容
+              <textarea
+                id={`description-${row.key}`}
+                value={row.description}
+                onChange={(event) => updateRow(index, "description", event.target.value)}
+                placeholder="担当業務や成果などを記載してください"
+                rows={5}
+                style={{
+                  width: "100%",
+                  borderRadius: "8px",
+                  border: "1px solid var(--color-border, #d1d5db)",
+                  padding: "12px",
+                  resize: "vertical",
+                  minHeight: "140px",
+                }}
+              />
+            </label>
+
+            <div style={{ display: "flex", justifyContent: "flex-end" }}>
+              <button
+                type="button"
+                onClick={() => handleRemoveRow(index)}
+                disabled={rows.length <= 1}
+                style={{
+                  backgroundColor: "#ffffff",
+                  color: "var(--color-primary, #2563eb)",
+                  border: "1px solid rgba(37, 99, 235, 0.3)",
+                  borderRadius: "9999px",
+                  padding: "0.5rem 1rem",
+                  fontWeight: 600,
+                  cursor: rows.length <= 1 ? "not-allowed" : "pointer",
+                  minHeight: "auto",
+                  opacity: rows.length <= 1 ? 0.5 : 1,
+                  backgroundImage: "none",
+                }}
+              >
+                削除
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div>
+        <button
+          type="button"
+          onClick={handleAddRow}
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: "6px",
+            border: "1px dashed var(--color-primary, #2563eb)",
+            backgroundColor: "rgba(37, 99, 235, 0.08)",
+            color: "var(--color-primary, #2563eb)",
+            borderRadius: "9999px",
+            padding: "10px 18px",
+            fontWeight: 600,
+          }}
+        >
+          ＋ 職歴を追加
+        </button>
+      </div>
+
+      <div style={{ marginTop: "8px" }}>
         <StepNav
           step={4}
           totalSteps={5}
@@ -167,7 +258,7 @@ export default function ResumeStep4Page() {
           nextType="link"
           nextDisabled={false}
         />
-      </form>
-    </div>
+      </div>
+    </form>
   );
 }
