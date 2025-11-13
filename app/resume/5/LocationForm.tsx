@@ -525,7 +525,7 @@ export default function LocationForm() {
       <div style={{ display: "grid", gap: "8px" }}>
         <h2 className="resume-page-title">希望勤務地</h2>
         <p style={{ color: "var(--color-text-muted, #6b7280)", fontSize: "0.875rem" }}>
-          希望する勤務地を選択してください。選択後は自動的に保存されます。
+          
         </p>
         {loadError && (
           <p
@@ -611,7 +611,7 @@ export default function LocationForm() {
         <div style={{ display: "grid", gap: "8px" }}>
           <h3 style={{ margin: 0, fontSize: "1rem", fontWeight: 600 }}>希望職種</h3>
           <p style={{ fontSize: "0.8125rem", color: "var(--color-text-muted, #6b7280)" }}>
-            希望する職種をタグで入力してください。
+            
           </p>
           <TagInput
             id="desired-roles"
@@ -625,7 +625,7 @@ export default function LocationForm() {
         <div style={{ display: "grid", gap: "8px" }}>
           <h3 style={{ margin: 0, fontSize: "1rem", fontWeight: 600 }}>希望業界</h3>
           <p style={{ fontSize: "0.8125rem", color: "var(--color-text-muted, #6b7280)" }}>
-            関心のある業界をタグで入力してください。
+          
           </p>
           <TagInput
             id="desired-industries"

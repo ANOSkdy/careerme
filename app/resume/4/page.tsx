@@ -74,7 +74,7 @@ export default function ResumeStep4Page() {
                   value={row.company}
                   onChange={(event) => updateRow(index, "company", event.target.value)}
                   className="form-input"
-                  placeholder="株式会社キャリアミー"
+                  placeholder="株式会社キャリミー"
                   autoComplete="organization"
                 />
               </div>

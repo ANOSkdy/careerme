@@ -3,7 +3,7 @@ import type { Metadata, Viewport } from "next"
 import MobileShell from "../components/layout/MobileShell"
 
 export const metadata: Metadata = {
-  title: "careerme",
+  title: "Careerme（キャリミー）Careerme",
   description: "Resume/CV builder",
 }
 

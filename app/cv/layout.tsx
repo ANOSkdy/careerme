@@ -5,7 +5,7 @@ import CvTabNav from "../../components/layout/CvTabNav"
 import CvMetaChips from "../../components/layout/CvMetaChips"
 
 export const metadata = {
-  title: "CV Wizard",
+  title: "Careerme（キャリミー）",
 }
 
 export default function CvLayout({ children }: { children: ReactNode }) {
@@ -13,7 +13,7 @@ export default function CvLayout({ children }: { children: ReactNode }) {
     <section className={styles.section}>
       <header className={styles.header}>
         <div className={styles.heading}>
-          <h1 className={styles.title}>職務経歴書ウィザード</h1>
+          <h1 className={styles.title}>職務経歴書</h1>
           <CvMetaChips />
         </div>
         <CvTabNav />
