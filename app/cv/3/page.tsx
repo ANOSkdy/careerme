@@ -9,9 +9,6 @@ import CvPrintView, {
   type CvPrintTextField,
 } from '../../../components/cv/CvPrintView';
 
-export const dynamic = 'force-dynamic';
-export const revalidate = 0;
-
 type ResumeResponse = Partial<CvPrintResume> & {
   id?: string | null;
   basicInfo?: CvPrintResume['basicInfo'] | null;
