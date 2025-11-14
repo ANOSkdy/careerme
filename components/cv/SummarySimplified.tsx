@@ -108,8 +108,9 @@ export default function SummarySimplified() {
             fontWeight: 700,
             boxShadow: '0 4px 10px rgba(58, 117, 196, 0.25)',
           }}
+          aria-label="職務経歴書の生成"
         >
-          PDFを出力
+          職務経歴書の生成
         </button>
       </nav>
     </main>
