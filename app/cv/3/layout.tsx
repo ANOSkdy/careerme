@@ -1,6 +1,5 @@
 import type { ReactNode } from 'react';
-import SummarySimplified from '../../../components/cv/SummarySimplified';
 
-export default function Layout(_props: { children: ReactNode }) {
-  return <SummarySimplified />;
+export default function Layout({ children }: { children: ReactNode }) {
+  return <>{children}</>;
 }
