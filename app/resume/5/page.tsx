@@ -12,8 +12,6 @@ import {
 } from "react";
 import type { ZodError } from "zod";
 
-import Modal from "../../../components/ui/Modal";
-import TagSelector, { type TagOption } from "../../../components/ui/TagSelector";
 import { createPreferredLocationSchema } from "../../../lib/validation/schemas";
 import AutoSaveBadge from "../_components/AutoSaveBadge";
 import StepNav from "../_components/StepNav";
@@ -47,7 +45,7 @@ type DesiredSnapshot = {
   locations: string[];
 };
 
-type ActiveModal = "roles" | "industries" | null;
+type ActivePicker = "roles" | "industries" | null;
 
 const STORAGE_KEY = "resume.resumeId";
 const ERROR_MESSAGE = "希望勤務地を選択してください";
@@ -267,7 +265,7 @@ function limitWithFallback(
   return result.slice(0, limit);
 }
 
-function toTagOptions(list: string[]): TagOption[] {
+function toOptions(list: string[]): Option[] {
   return list.map((item) => ({ value: item, label: item }));
 }
 
@@ -295,12 +293,12 @@ export default function ResumeStep5Page() {
   );
   const [roles, setRoles] = useState<string[]>([]);
   const [industries, setIndustries] = useState<string[]>([]);
-  const [roleOptions, setRoleOptions] = useState<TagOption[]>([]);
-  const [industryOptions, setIndustryOptions] = useState<TagOption[]>([]);
+  const [roleOptions, setRoleOptions] = useState<Option[]>([]);
+  const [industryOptions, setIndustryOptions] = useState<Option[]>([]);
   const [desiredReady, setDesiredReady] = useState(false);
-  const [activeModal, setActiveModal] = useState<ActiveModal>(null);
-  const [modalDraft, setModalDraft] = useState<string[]>([]);
-  const [filterQuery, setFilterQuery] = useState<string>("");
+  const [activeDropdown, setActiveDropdown] = useState<ActivePicker>(null);
+  const [roleFilter, setRoleFilter] = useState("");
+  const [industryFilter, setIndustryFilter] = useState("");
 
   const lastSavedRef = useRef<string | null>(null);
   const isMountedRef = useRef(true);
@@ -387,15 +385,15 @@ export default function ResumeStep5Page() {
           FALLBACK_INDUSTRIES,
           INDUSTRY_LIMIT
         );
-        setRoleOptions(toTagOptions(roleList));
-        setIndustryOptions(toTagOptions(industryList));
+        setRoleOptions(toOptions(roleList));
+        setIndustryOptions(toOptions(industryList));
       } catch (error) {
         if ((error as Error).name === "AbortError") return;
         console.error("Failed to load desired lookups", error);
         if (!cancelled) {
-          setRoleOptions(toTagOptions(limitWithFallback([], FALLBACK_ROLES, ROLE_LIMIT)));
+          setRoleOptions(toOptions(limitWithFallback([], FALLBACK_ROLES, ROLE_LIMIT)));
           setIndustryOptions(
-            toTagOptions(limitWithFallback([], FALLBACK_INDUSTRIES, INDUSTRY_LIMIT))
+            toOptions(limitWithFallback([], FALLBACK_INDUSTRIES, INDUSTRY_LIMIT))
           );
         }
       }
@@ -597,42 +595,197 @@ export default function ResumeStep5Page() {
     event.preventDefault();
   }, []);
 
-  const openModal = useCallback(
-    (type: Exclude<ActiveModal, null>) => {
-      setActiveModal(type);
-      setFilterQuery("");
-      setModalDraft(type === "roles" ? roles : industries);
-    },
-    [roles, industries]
-  );
-
-  const closeModal = useCallback(() => {
-    setActiveModal(null);
-    setModalDraft([]);
-    setFilterQuery("");
+  const toggleDropdown = useCallback((type: Exclude<ActivePicker, null>) => {
+    setActiveDropdown((prev) => (prev === type ? null : type));
   }, []);
 
-  const applyModalSelection = useCallback(() => {
-    if (!activeModal) return;
-    const normalized = normalizeSelection(modalDraft);
-    if (activeModal === "roles") {
-      setRoles(normalized);
-    } else if (activeModal === "industries") {
-      setIndustries(normalized);
+  const toggleSelection = useCallback(
+    (type: Exclude<ActivePicker, null>, optionValue: string) => {
+      const updater = type === "roles" ? setRoles : setIndustries;
+      updater((prev) => {
+        const exists = prev.includes(optionValue);
+        if (exists) {
+          return prev.filter((item) => item !== optionValue);
+        }
+        if (prev.length >= MAX_SELECTIONS) {
+          return prev;
+        }
+        return normalizeSelection([...prev, optionValue]);
+      });
+    },
+    []
+  );
+
+  const clearSelections = useCallback((type: Exclude<ActivePicker, null>) => {
+    if (type === "roles") {
+      setRoles([]);
+    } else {
+      setIndustries([]);
     }
-    closeModal();
-  }, [activeModal, modalDraft, closeModal]);
+  }, []);
+
+  useEffect(() => {
+    if (activeDropdown !== "roles") {
+      setRoleFilter("");
+    }
+    if (activeDropdown !== "industries") {
+      setIndustryFilter("");
+    }
+  }, [activeDropdown]);
+
+  const filteredRoleOptions = useMemo(() => {
+    const query = roleFilter.trim().toLowerCase();
+    if (!query) return roleOptions;
+    return roleOptions.filter((option) =>
+      option.label.toLowerCase().includes(query)
+    );
+  }, [roleFilter, roleOptions]);
+
+  const filteredIndustryOptions = useMemo(() => {
+    const query = industryFilter.trim().toLowerCase();
+    if (!query) return industryOptions;
+    return industryOptions.filter((option) =>
+      option.label.toLowerCase().includes(query)
+    );
+  }, [industryFilter, industryOptions]);
 
   const fieldErrorId = fieldError ? "preferredLocation-error" : undefined;
   const describedBy = [fieldErrorId].filter(Boolean).join(" ").trim() || undefined;
 
-  const filteredOptions = useMemo(() => {
-    const list = activeModal === "roles" ? roleOptions : industryOptions;
-    if (!activeModal) return [];
-    if (!filterQuery) return list;
-    const query = filterQuery.toLowerCase();
-    return list.filter((option) => option.label.toLowerCase().includes(query));
-  }, [activeModal, filterQuery, roleOptions, industryOptions]);
+  const isRoleDropdownOpen = activeDropdown === "roles";
+  const isIndustryDropdownOpen = activeDropdown === "industries";
+
+  const renderDropdown = (
+    type: Exclude<ActivePicker, null>,
+    optionsList: Option[],
+    selectedValues: string[],
+    filterValue: string,
+    onFilterChange: (value: string) => void
+  ) => {
+    const selectionSet = new Set(selectedValues);
+    const filterId = `${type}-filter`;
+    return (
+      <div
+        id={`${type}-dropdown`}
+        role="group"
+        style={{
+          display: "grid",
+          gap: "12px",
+          padding: "16px",
+          backgroundColor: "#fff",
+          border: "1px solid var(--color-border, #d1d5db)",
+          borderRadius: "12px",
+          boxShadow: "0 12px 32px rgba(15, 23, 42, 0.15)",
+        }}
+      >
+        <div style={{ display: "grid", gap: "4px" }}>
+          <label htmlFor={filterId} style={{ fontWeight: 600, fontSize: "0.875rem" }}>
+            キーワードで絞り込み
+          </label>
+          <input
+            id={filterId}
+            type="search"
+            value={filterValue}
+            onChange={(event) => onFilterChange(event.target.value)}
+            placeholder="キーワードを入力"
+            style={{
+              width: "100%",
+              borderRadius: "9999px",
+              border: "1px solid var(--color-border, #d1d5db)",
+              padding: "10px 14px",
+              fontSize: "0.95rem",
+            }}
+          />
+        </div>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            gap: "12px",
+          }}
+        >
+          <span style={{ fontSize: "0.875rem", color: "var(--color-secondary, #6b7280)" }}>
+            選択中 {selectedValues.length}/{MAX_SELECTIONS}
+          </span>
+          <button
+            type="button"
+            onClick={() => clearSelections(type)}
+            disabled={selectedValues.length === 0}
+            style={{
+              backgroundColor: "transparent",
+              border: "1px solid var(--color-border, #d1d5db)",
+              borderRadius: "9999px",
+              padding: "6px 12px",
+              fontSize: "0.8rem",
+              color: selectedValues.length === 0 ? "#9ca3af" : "var(--color-primary, #2563eb)",
+            }}
+          >
+            クリア
+          </button>
+        </div>
+        <div
+          role="listbox"
+          aria-multiselectable
+          style={{
+            maxHeight: "50vh",
+            overflowY: "auto",
+            display: "grid",
+            gap: "8px",
+            paddingRight: "4px",
+          }}
+        >
+          {optionsList.length === 0 ? (
+            <p
+              style={{ fontSize: "0.875rem", color: "var(--color-secondary, #6b7280)" }}
+              aria-live="polite"
+            >
+              条件に一致する候補がありません
+            </p>
+          ) : (
+            optionsList.map((option) => {
+              const isSelected = selectionSet.has(option.value);
+              const disableOption = !isSelected && selectedValues.length >= MAX_SELECTIONS;
+              return (
+                <label
+                  key={option.value}
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "12px",
+                    padding: "8px 12px",
+                    borderRadius: "12px",
+                    backgroundColor: isSelected
+                      ? "rgba(37, 99, 235, 0.08)"
+                      : "rgba(15, 23, 42, 0.02)",
+                  }}
+                >
+                  <input
+                    type="checkbox"
+                    checked={isSelected}
+                    onChange={() => toggleSelection(type, option.value)}
+                    disabled={disableOption}
+                    aria-label={option.label}
+                    style={{ width: "20px", height: "20px" }}
+                  />
+                  <span style={{ flex: 1, fontSize: "0.95rem" }}>{option.label}</span>
+                  {isSelected ? <span aria-hidden="true">✓</span> : null}
+                </label>
+              );
+            })
+          )}
+        </div>
+        <button
+          type="button"
+          onClick={() => setActiveDropdown(null)}
+          className="step-nav__button step-nav__button--primary"
+          style={{ justifySelf: "stretch" }}
+        >
+          完了
+        </button>
+      </div>
+    );
+  };
 
   const chips = (items: string[]) => (
     <div style={CHIP_LIST_STYLE} role="list" aria-live="polite">
@@ -714,12 +867,12 @@ export default function ResumeStep5Page() {
               <h3 style={{ margin: 0, fontSize: "1rem", fontWeight: 600 }}>希望職種</h3>
               <button
                 type="button"
-                onClick={() => openModal("roles")}
+                onClick={() => toggleDropdown("roles")}
                 style={TERTIARY_BUTTON_STYLE}
-                aria-haspopup="dialog"
-                aria-controls="roles-selector-modal"
+                aria-expanded={isRoleDropdownOpen}
+                aria-controls="roles-dropdown"
               >
-                選択する
+                {isRoleDropdownOpen ? "閉じる" : "選択する"}
               </button>
             </div>
             {roles.length > 0 ? (
@@ -729,6 +882,15 @@ export default function ResumeStep5Page() {
                 選択されていません
               </p>
             )}
+            {isRoleDropdownOpen
+              ? renderDropdown(
+                  "roles",
+                  filteredRoleOptions,
+                  roles,
+                  roleFilter,
+                  setRoleFilter
+                )
+              : null}
           </div>
 
           <div style={{ display: "grid", gap: "12px" }}>
@@ -743,12 +905,12 @@ export default function ResumeStep5Page() {
               <h3 style={{ margin: 0, fontSize: "1rem", fontWeight: 600 }}>希望業界</h3>
               <button
                 type="button"
-                onClick={() => openModal("industries")}
+                onClick={() => toggleDropdown("industries")}
                 style={TERTIARY_BUTTON_STYLE}
-                aria-haspopup="dialog"
-                aria-controls="industries-selector-modal"
+                aria-expanded={isIndustryDropdownOpen}
+                aria-controls="industries-dropdown"
               >
-                選択する
+                {isIndustryDropdownOpen ? "閉じる" : "選択する"}
               </button>
             </div>
             {industries.length > 0 ? (
@@ -758,6 +920,15 @@ export default function ResumeStep5Page() {
                 選択されていません
               </p>
             )}
+            {isIndustryDropdownOpen
+              ? renderDropdown(
+                  "industries",
+                  filteredIndustryOptions,
+                  industries,
+                  industryFilter,
+                  setIndustryFilter
+                )
+              : null}
           </div>
 
           <AutoSaveBadge state={desiredAutoSaveState} />
@@ -765,100 +936,6 @@ export default function ResumeStep5Page() {
 
         <StepNav step={5} nextType="link" nextHref={NEXT_STEP_HREF} />
       </form>
-
-      <Modal
-        open={activeModal === "roles"}
-        onClose={closeModal}
-        title="希望職種を選択"
-        labelledBy="roles-selector-modal"
-      >
-        <div style={{ display: "grid", gap: "16px" }}>
-          <div style={{ display: "grid", gap: "8px" }}>
-            <label htmlFor="roles-filter" style={{ fontWeight: 600 }}>
-              フィルター
-            </label>
-            <input
-              id="roles-filter"
-              type="search"
-              value={filterQuery}
-              onChange={(event) => setFilterQuery(event.target.value)}
-              placeholder="キーワードで絞り込み"
-              style={{
-                width: "100%",
-                borderRadius: "8px",
-                border: "1px solid var(--color-border, #d1d5db)",
-                padding: "10px 12px",
-              }}
-            />
-          </div>
-          <p aria-live="polite" style={{ fontSize: "0.875rem", color: "var(--color-secondary, #6b7280)" }}>
-            選択中 {modalDraft.length}/{MAX_SELECTIONS}
-          </p>
-          <TagSelector
-            options={filteredOptions}
-            value={modalDraft}
-            onChange={setModalDraft}
-            maxSelections={MAX_SELECTIONS}
-            helperText={`最大${MAX_SELECTIONS}件まで選択できます`}
-          />
-          <div style={{ display: "flex", justifyContent: "flex-end" }}>
-            <button
-              type="button"
-              onClick={applyModalSelection}
-              className="step-nav__button step-nav__button--primary"
-            >
-              決定
-            </button>
-          </div>
-        </div>
-      </Modal>
-
-      <Modal
-        open={activeModal === "industries"}
-        onClose={closeModal}
-        title="希望業界を選択"
-        labelledBy="industries-selector-modal"
-      >
-        <div style={{ display: "grid", gap: "16px" }}>
-          <div style={{ display: "grid", gap: "8px" }}>
-            <label htmlFor="industries-filter" style={{ fontWeight: 600 }}>
-              フィルター
-            </label>
-            <input
-              id="industries-filter"
-              type="search"
-              value={filterQuery}
-              onChange={(event) => setFilterQuery(event.target.value)}
-              placeholder="キーワードで絞り込み"
-              style={{
-                width: "100%",
-                borderRadius: "8px",
-                border: "1px solid var(--color-border, #d1d5db)",
-                padding: "10px 12px",
-              }}
-            />
-          </div>
-          <p aria-live="polite" style={{ fontSize: "0.875rem", color: "var(--color-secondary, #6b7280)" }}>
-            選択中 {modalDraft.length}/{MAX_SELECTIONS}
-          </p>
-          <TagSelector
-            options={filteredOptions}
-            value={modalDraft}
-            onChange={setModalDraft}
-            maxSelections={MAX_SELECTIONS}
-            helperText={`最大${MAX_SELECTIONS}件まで選択できます`}
-          />
-          <div style={{ display: "flex", justifyContent: "flex-end" }}>
-            <button
-              type="button"
-              onClick={applyModalSelection}
-              className="step-nav__button step-nav__button--primary"
-            >
-              決定
-            </button>
-          </div>
-        </div>
-      </Modal>
     </>
   );
 }
