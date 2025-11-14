@@ -15,10 +15,10 @@ export default function PdfActions() {
         <button
           type="button"
           className="cv-btn ghost"
-          aria-label="職務要約の生成"
+          aria-label="職務経歴書の生成"
           onClick={handlePrint}
         >
-          職務要約の生成
+          職務経歴書の生成
         </button>
       </div>
       <style jsx global>{`

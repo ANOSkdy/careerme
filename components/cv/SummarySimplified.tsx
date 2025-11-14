@@ -108,9 +108,9 @@ export default function SummarySimplified() {
             fontWeight: 700,
             boxShadow: '0 4px 10px rgba(58, 117, 196, 0.25)',
           }}
-          aria-label="職務要約の生成"
+          aria-label="職務経歴書の生成"
         >
-          職務要約の生成
+          職務経歴書の生成
         </button>
       </nav>
     </main>
