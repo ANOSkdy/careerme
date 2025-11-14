@@ -2,8 +2,12 @@
 
 import { useEffect, useState } from 'react';
 
-import PdfActions from '../../components/PdfActions';
-import CvPrintView, { type CvPrintResume, type CvPrintWork, type CvPrintTextField } from '../../components/cv/CvPrintView';
+import PdfActions from '../../../components/PdfActions';
+import CvPrintView, {
+  type CvPrintResume,
+  type CvPrintWork,
+  type CvPrintTextField,
+} from '../../../components/cv/CvPrintView';
 
 export const dynamic = 'force-dynamic';
 export const revalidate = 0;
