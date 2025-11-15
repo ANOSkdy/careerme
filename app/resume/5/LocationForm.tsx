@@ -503,25 +503,27 @@ export default function LocationForm() {
 
         <div style={{ display: "grid", gap: "8px" }}>
           <h3 style={{ margin: 0, fontSize: "1rem", fontWeight: 600 }}>希望職種</h3>
-          
+
           <TagInput
             id="desired-roles"
             label="希望職種"
             value={roles}
             onChange={handleRolesChange}
             placeholder="例）マーケティング、ITコンサル、カスタマーサクセス"
+            labelHidden
           />
         </div>
 
         <div style={{ display: "grid", gap: "8px" }}>
           <h3 style={{ margin: 0, fontSize: "1rem", fontWeight: 600 }}>希望業界</h3>
-          
+
           <TagInput
             id="desired-industries"
             label="希望業界"
             value={industries}
             onChange={handleIndustriesChange}
             placeholder="例）SaaS、金融、ヘルスケア"
+            labelHidden
           />
         </div>
 
