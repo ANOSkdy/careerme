@@ -1,5 +1,12 @@
 "use client";
-import { useCallback, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import {
+  useCallback,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type KeyboardEvent,
+} from "react";
 
 type TagInputProps = {
   id: string;
@@ -7,6 +14,7 @@ type TagInputProps = {
   value: string[];
   onChange: (tags: string[]) => void;
   placeholder?: string;
+  labelHidden?: boolean;
 };
 
 export default function TagInput({
@@ -15,11 +23,10 @@ export default function TagInput({
   value,
   onChange,
   placeholder,
+  labelHidden = false,
 }: TagInputProps) {
   const [draft, setDraft] = useState("");
   const inputRef = useRef<HTMLInputElement | null>(null);
-
-  const hint = useMemo(() => "Enter または , でタグを追加", []);
 
   const addTag = useCallback(
     (raw: string) => {
@@ -62,12 +69,26 @@ export default function TagInput({
     addTag(draft);
   }, [addTag, draft]);
 
+  const labelStyle = useMemo<CSSProperties>(() => {
+    if (!labelHidden) {
+      return { fontSize: "0.875rem", fontWeight: 600 };
+    }
+    return {
+      position: "absolute",
+      width: "1px",
+      height: "1px",
+      padding: 0,
+      margin: "-1px",
+      overflow: "hidden",
+      clip: "rect(0, 0, 0, 0)",
+      whiteSpace: "nowrap",
+      border: 0,
+    };
+  }, [labelHidden]);
+
   return (
     <div style={{ display: "grid", gap: "4px" }}>
-      <label
-        htmlFor={id}
-        style={{ fontSize: "0.875rem", fontWeight: 600 }}
-      >
+      <label htmlFor={id} style={labelStyle}>
         {label}
       </label>
       <div
@@ -118,7 +139,7 @@ export default function TagInput({
           onChange={(event) => setDraft(event.target.value)}
           onKeyDown={handleKeyDown}
           onBlur={handleBlur}
-          placeholder={placeholder ?? hint}
+          placeholder={placeholder ?? ""}
           style={{
             flex: 1,
             minWidth: "120px",
@@ -128,15 +149,8 @@ export default function TagInput({
             backgroundColor: "transparent",
             padding: "4px 0",
           }}
-          aria-describedby={`${id}-hint`}
         />
       </div>
-      <p
-        id={`${id}-hint`}
-        style={{ margin: "4px 0 0", fontSize: "0.75rem", color: "#6b7280" }}
-      >
-        {hint}
-      </p>
     </div>
   );
 }
