@@ -63,7 +63,13 @@ export default function TagInput({
   }, [addTag, draft]);
 
   return (
-    <div style={{ display: "grid", gap: "4px" }}>
+    <div
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        gap: "6px",
+      }}
+    >
       <label
         htmlFor={id}
         style={{ fontSize: "0.875rem", fontWeight: 600 }}
@@ -74,11 +80,12 @@ export default function TagInput({
         style={{
           display: "flex",
           flexWrap: "wrap",
-          gap: "8px",
-          border: "1px solid var(--color-border, #d1d5db)",
-          borderRadius: "8px",
-          padding: "6px 8px",
-          backgroundColor: "#fff",
+          gap: "6px",
+          borderRadius: "16px",
+          padding: "8px 10px",
+          background: "linear-gradient(135deg, rgba(79,70,229,0.08), rgba(129,140,248,0.08))",
+          border: "1px solid rgba(99,102,241,0.2)",
+          boxShadow: "inset 0 1px 0 rgba(255,255,255,0.6)",
         }}
       >
         {value.map((tag) => (
@@ -87,9 +94,13 @@ export default function TagInput({
             style={{
               display: "inline-flex",
               alignItems: "center",
-              gap: "4px",
+              gap: "6px",
               fontSize: "0.875rem",
-              color: "#111827",
+              color: "#312e81",
+              padding: "6px 12px",
+              borderRadius: "9999px",
+              background: "linear-gradient(135deg, #EEF2FF, #E0E7FF)",
+              boxShadow: "0 1px 2px rgba(79,70,229,0.18)",
             }}
           >
             {tag}
@@ -99,11 +110,12 @@ export default function TagInput({
               style={{
                 appearance: "none",
                 border: "none",
-                background: "transparent",
-                color: "var(--color-primary, #2563eb)",
+                background: "rgba(79,70,229,0.12)",
+                color: "#4338ca",
                 cursor: "pointer",
-                padding: 0,
+                padding: "2px 6px",
                 fontSize: "0.75rem",
+                borderRadius: "9999px",
               }}
               aria-label={`${tag} を削除`}
             >
@@ -121,12 +133,13 @@ export default function TagInput({
           placeholder={placeholder ?? hint}
           style={{
             flex: 1,
-            minWidth: "120px",
+            minWidth: "96px",
             border: "none",
             outline: "none",
             fontSize: "0.875rem",
             backgroundColor: "transparent",
-            padding: "4px 0",
+            padding: "6px 0",
+            color: "#1f2937",
           }}
           aria-describedby={`${id}-hint`}
         />
