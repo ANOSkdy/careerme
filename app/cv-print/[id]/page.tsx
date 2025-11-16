@@ -10,7 +10,7 @@ interface PrintSnapshotResponse {
 }
 
 async function fetchSnapshot(id: string): Promise<PrintSnapshotResponse | null> {
-  const headersList = headers();
+  const headersList = await headers();
   const forwardedProto = headersList.get('x-forwarded-proto');
   const host = headersList.get('host');
   const origin =
