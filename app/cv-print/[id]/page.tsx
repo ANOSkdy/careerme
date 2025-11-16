@@ -1,6 +1,6 @@
-import dynamic from 'next/dynamic';
 import { headers } from 'next/headers';
 import { notFound } from 'next/navigation';
+import Script from 'next/script';
 
 interface PrintSnapshotResponse {
   id: string;
@@ -98,31 +98,32 @@ function getPrintStyles(): string {
   `;
 }
 
-const PrintClient = dynamic(
-  () =>
-    import('react').then(({ useEffect }) => {
-      const Client = () => {
-        useEffect(() => {
-          const timer = window.setTimeout(() => {
-            try {
-              window.print();
-            } catch (error) {
-              console.error('Failed to open print dialog', error);
-            }
-          }, 100);
+function PrintAssets() {
+  return (
+    <>
+      <style dangerouslySetInnerHTML={{ __html: getPrintStyles() }} />
+      <Script id="cv-print-trigger" strategy="afterInteractive">
+        {`(() => {
+  const trigger = () => {
+    try {
+      window.print();
+    } catch (error) {
+      console.error('Failed to open print dialog', error);
+    }
+  };
 
-          return () => {
-            window.clearTimeout(timer);
-          };
-        }, []);
+  const schedule = () => window.setTimeout(trigger, 100);
 
-        return <style dangerouslySetInnerHTML={{ __html: getPrintStyles() }} />;
-      };
-
-      return Client;
-    }),
-  { ssr: false },
-);
+  if (document.readyState === 'complete') {
+    schedule();
+  } else {
+    window.addEventListener('load', schedule, { once: true });
+  }
+})();`}
+      </Script>
+    </>
+  );
+}
 
 export default async function CvPrintPage({
   params,
@@ -141,7 +142,7 @@ export default async function CvPrintPage({
         dangerouslySetInnerHTML={{ __html: snapshot.html }}
         suppressHydrationWarning
       />
-      <PrintClient />
+      <PrintAssets />
     </div>
   );
 }
