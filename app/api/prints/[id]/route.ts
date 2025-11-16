@@ -6,7 +6,7 @@ import { listAirtableRecords } from '../../../../lib/db/airtable';
 
 const TABLE_NAME = process.env.AIRTABLE_TABLE_PRINT_SNAPSHOTS ?? 'PrintSnapshots';
 
-interface PrintSnapshotFields {
+interface PrintSnapshotFields extends Record<string, unknown> {
   public_id?: string;
   html?: string;
   template_version?: string;
