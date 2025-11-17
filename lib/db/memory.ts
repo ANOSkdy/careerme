@@ -31,6 +31,7 @@ export type MemoryEducationRecord = {
 type MemoryStore = {
   resumes: Map<string, MemoryResumeRecord>;
   education: Map<string, MemoryEducationRecord[]>;
+  prints: Map<string, unknown>;
 };
 
 interface MemoryGlobal {
@@ -43,6 +44,7 @@ export function getMemoryStore(): MemoryStore {
     globalObj.__careermeMemoryStore = {
       resumes: new Map<string, MemoryResumeRecord>(),
       education: new Map<string, MemoryEducationRecord[]>(),
+      prints: new Map<string, unknown>(),
     };
   }
   return globalObj.__careermeMemoryStore;
