@@ -9,6 +9,12 @@
         }
       ]
     }
+  ],
+  "crons": [
+    {
+      "path": "/api/schedule/cron/notify",
+      "schedule": "0 * * * *"
+    }
   ]
 }
 
