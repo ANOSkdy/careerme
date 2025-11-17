@@ -8,7 +8,7 @@ import {
   type ApiError,
 } from '../../../lib/schemas/schedule'
 
-export const runtime = 'node'
+export const runtime = 'nodejs'
 
 function errorResponse(status: number, message: string, correlationId: string) {
   const body: ApiError = {
