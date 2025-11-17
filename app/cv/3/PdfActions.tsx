@@ -1,25 +1,12 @@
 'use client';
 
-import { useCallback } from 'react';
+import PrintSnapshotButton from '../../components/cv/PrintSnapshotButton';
 
 export default function PdfActions() {
-  const handlePrint = useCallback(() => {
-    if (typeof window !== 'undefined') {
-      window.print();
-    }
-  }, []);
-
   return (
     <>
       <div className="cv-row" style={{ justifyContent: 'flex-end', marginBottom: 16 }}>
-        <button
-          type="button"
-          className="cv-btn ghost"
-          aria-label="職務経歴書の生成"
-          onClick={handlePrint}
-        >
-          職務経歴書の生成
-        </button>
+        <PrintSnapshotButton className="w-full md:w-auto" />
       </div>
       <style jsx global>{`
         @page {
