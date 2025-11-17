@@ -33,5 +33,12 @@ export async function POST(req: NextRequest) {
 
   store.prints.set(id, snapshot);
 
-  return NextResponse.json({ ok: true, id });
+  const response = NextResponse.json({ ok: true, id });
+  response.cookies.set(`print_snapshot_${id}`, JSON.stringify(snapshot), {
+    httpOnly: true,
+    sameSite: "lax",
+    path: "/",
+    maxAge: 60 * 10,
+  });
+  return response;
 }
