@@ -1,6 +1,6 @@
 'use client';
 
-import PrintSnapshotButton from '../../components/cv/PrintSnapshotButton';
+import PrintSnapshotButton from '../../../components/cv/PrintSnapshotButton';
 
 export default function PdfActions() {
   return (
