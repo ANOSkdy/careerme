@@ -96,7 +96,12 @@ export async function POST(req: NextRequest) {
       warn,
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
+    const message =
+      error instanceof Error && error.message.includes('GEMINI_API_KEY')
+        ? 'GEMINI_API_KEY が未設定です。環境変数を設定してから再実行してください。'
+        : error instanceof Error
+          ? error.message
+          : String(error);
     return NextResponse.json({ ok: false, error: { message } }, { status: 500 });
   }
 }

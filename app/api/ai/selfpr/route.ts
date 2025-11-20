@@ -83,7 +83,12 @@ export async function POST(req: NextRequest) {
 
     return json<SuccessBody>({ ok: true, text, saved, warn }, 200);
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Unexpected error";
+    const message =
+      error instanceof Error && error.message.includes("GEMINI_API_KEY")
+        ? "GEMINI_API_KEY が未設定です。環境変数を設定してから再実行してください。"
+        : error instanceof Error
+          ? error.message
+          : "Unexpected error";
     console.error("[api/ai/selfpr] generation failed", error);
     return json<ErrorBody>({ ok: false, error: { message } }, 500);
   }
