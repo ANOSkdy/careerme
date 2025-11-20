@@ -177,6 +177,54 @@ type ResumeFields = {
   updatedAt?: string;
 };
 
+function extractUnknownFields(error: unknown): string[] {
+  const message = (error as Error).message;
+  const single = message.match(/Unknown field name:\s*"([^"]+)"/i);
+  if (single?.[1]) return [single[1]];
+
+  const multiple = message.match(/Unknown field names?:\s*([A-Za-z0-9_,\s"']+)/i);
+  if (multiple?.[1]) {
+    return multiple[1]
+      .replace(/["']/g, "")
+      .split(/[,\s]+/)
+      .map((value) => value.trim())
+      .filter(Boolean);
+  }
+
+  return [];
+}
+
+async function writeWithUnknownFieldRetry<T>(
+  fields: ResumeFields,
+  writer: (cleanFields: ResumeFields) => Promise<T>
+): Promise<T> {
+  const ignored = new Set<string>();
+  let current = { ...fields };
+
+  for (;;) {
+    try {
+      return await writer(current);
+    } catch (error) {
+      const unknownFields = extractUnknownFields(error);
+      const removable = unknownFields.filter(
+        (field) => field in current && !ignored.has(field)
+      );
+
+      if (!removable.length) throw error;
+
+      for (const field of removable) {
+        delete (current as Record<string, unknown>)[field];
+        ignored.add(field);
+      }
+
+      console.warn(
+        "Retrying Airtable write without unknown field(s):",
+        removable.join(", ")
+      );
+    }
+  }
+}
+
 function sanitizeFormulaValue(value: string) {
   return value.replace(/'/g, "\'");
 }
@@ -405,60 +453,42 @@ export async function POST(req: NextRequest) {
     }
 
     const fieldsWithIds: ResumeFields = { ...baseFields };
-    if (existingRecord?.fields.draftId || (!existingRecord && bodyId)) {
+    if (typeof existingRecord?.fields.draftId === "string") {
       fieldsWithIds.draftId = resumeId;
     }
-    if (existingRecord?.fields.resumeId || (!existingRecord && bodyId)) {
+    if (typeof existingRecord?.fields.resumeId === "string") {
       fieldsWithIds.resumeId = resumeId;
     }
 
     const attemptUpdate = async (fields: ResumeFields) =>
-      updateAirtableRecords(TABLE_NAME, [
-        {
-          id: existingRecord!.id,
-          fields,
-        },
-      ]);
+      writeWithUnknownFieldRetry(fields, (cleanFields) =>
+        updateAirtableRecords(TABLE_NAME, [
+          {
+            id: existingRecord!.id,
+            fields: cleanFields,
+          },
+        ])
+      );
 
     if (existingRecord) {
-      try {
-        await attemptUpdate(fieldsWithIds);
-      } catch (error) {
-        const message = (error as Error).message;
-        if (message.includes("Unknown field name")) {
-          console.warn("Retrying resume update without id fields", message);
-          await attemptUpdate(baseFields);
-        } else {
-          throw error;
-        }
-      }
+      await attemptUpdate(fieldsWithIds);
     } else {
       const attemptCreate = async (fields: ResumeFields) =>
-        createAirtableRecords(TABLE_NAME, [
-          {
-            fields: {
-              ...fields,
-              createdAt: now,
+        writeWithUnknownFieldRetry(fields, (cleanFields) =>
+          createAirtableRecords(TABLE_NAME, [
+            {
+              fields: {
+                ...cleanFields,
+                createdAt: now,
+              },
             },
-          },
-        ]);
+          ])
+        );
 
-      try {
-        const created = await attemptCreate(fieldsWithIds);
-        const createdRecord = created[0];
-        resumeId =
-          createdRecord.fields.draftId ?? createdRecord.fields.resumeId ?? createdRecord.id ?? resumeId;
-      } catch (error) {
-        const message = (error as Error).message;
-        if (!message.includes("Unknown field name")) {
-          throw error;
-        }
-
-        console.warn("Retrying resume creation without id fields", message);
-        const created = await attemptCreate(baseFields);
-        const createdRecord = created[0];
-        resumeId = createdRecord.fields.draftId ?? createdRecord.fields.resumeId ?? createdRecord.id ?? resumeId;
-      }
+      const created = await attemptCreate(fieldsWithIds);
+      const createdRecord = created[0];
+      resumeId =
+        createdRecord.fields.draftId ?? createdRecord.fields.resumeId ?? createdRecord.id ?? resumeId;
     }
 
     const response = NextResponse.json({ id: resumeId });
