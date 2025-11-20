@@ -6,7 +6,7 @@ import { z } from 'zod';
 import { generateGeminiText } from '../../../../lib/ai/gemini';
 
 const requestSchema = z.object({
-  resumeId: z.string().min(1, 'resumeId is required'),
+  resumeId: z.string().min(1, 'resumeId is required').optional(),
   locale: z.string().min(2).max(5).optional(),
   role: z.string().min(1).optional(),
   years: z.number().nonnegative().optional(),
@@ -15,6 +15,31 @@ const requestSchema = z.object({
 });
 
 type RequestPayload = z.infer<typeof requestSchema>;
+
+async function ensureResumeId(req: NextRequest, providedId?: string) {
+  if (providedId) return providedId;
+
+  const response = await fetch(`${req.nextUrl.origin}/api/data/resume`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ touch: true }),
+    cache: 'no-store',
+  });
+
+  if (!response.ok) {
+    const detail = await response.text();
+    throw new Error(
+      detail || `Failed to ensure resumeId from /api/data/resume (${response.status})`
+    );
+  }
+
+  const data = (await response.json()) as { id?: string | null };
+  const ensuredId = typeof data.id === 'string' && data.id.length > 0 ? data.id : null;
+  if (!ensuredId) {
+    throw new Error('resumeId を確保できませんでした。時間をおいて再試行してください。');
+  }
+  return ensuredId;
+}
 
 function buildPrompt({
   locale = 'ja',
@@ -60,6 +85,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
+    const resumeId = await ensureResumeId(req, payload.resumeId);
     const prompt = buildPrompt(payload);
     const text = await generateGeminiText({
       prompt,
@@ -74,7 +100,7 @@ export async function POST(req: NextRequest) {
       const response = await fetch(`${req.nextUrl.origin}/api/data/resume`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ id: payload.resumeId, summary: text }),
+        body: JSON.stringify({ id: resumeId, summary: text }),
         cache: 'no-store',
       });
 
@@ -92,7 +118,7 @@ export async function POST(req: NextRequest) {
       ok: true,
       text,
       saved,
-      resumeId: payload.resumeId,
+      resumeId,
       warn,
     });
   } catch (error) {

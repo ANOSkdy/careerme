@@ -12,7 +12,7 @@ const extrasSchema = z.object({
 });
 
 const requestSchema = z.object({
-  resumeId: z.string().min(1, "resumeId is required"),
+  resumeId: z.string().min(1, "resumeId is required").optional(),
   qa: CvQaSchema,
   extras: extrasSchema.optional(),
 });
@@ -28,11 +28,37 @@ type SuccessBody = {
   ok: true;
   text: string;
   saved: boolean;
+  resumeId: string;
   warn?: string;
 };
 
 function json<T>(body: T, status: number) {
   return NextResponse.json(body, { status });
+}
+
+async function ensureResumeId(req: NextRequest, providedId?: string) {
+  if (providedId) return providedId;
+
+  const response = await fetch(`${req.nextUrl.origin}/api/data/resume`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ touch: true }),
+    cache: "no-store",
+  });
+
+  if (!response.ok) {
+    const detail = await response.text();
+    throw new Error(
+      detail || `Failed to ensure resumeId from /api/data/resume (${response.status})`
+    );
+  }
+
+  const data = (await response.json()) as { id?: string | null };
+  const ensuredId = typeof data.id === "string" && data.id.length > 0 ? data.id : null;
+  if (!ensuredId) {
+    throw new Error("resumeId を確保できませんでした。時間をおいて再試行してください。");
+  }
+  return ensuredId;
 }
 
 export async function POST(req: NextRequest) {
@@ -51,6 +77,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
+    const resumeId = await ensureResumeId(req, payload.resumeId);
     const prompt = buildSelfPrPrompt(payload.qa, payload.extras);
     const text = await generateGeminiText({
       prompt,
@@ -65,7 +92,7 @@ export async function POST(req: NextRequest) {
       const response = await fetch(`${req.nextUrl.origin}/api/data/resume`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ id: payload.resumeId, selfPr: text }),
+        body: JSON.stringify({ id: resumeId, selfPr: text }),
         cache: "no-store",
       });
 
@@ -81,7 +108,7 @@ export async function POST(req: NextRequest) {
       warn = error instanceof Error ? error.message : String(error);
     }
 
-    return json<SuccessBody>({ ok: true, text, saved, warn }, 200);
+    return json<SuccessBody>({ ok: true, text, saved, resumeId, warn }, 200);
   } catch (error) {
     const message =
       error instanceof Error && error.message.includes("GEMINI_API_KEY")
