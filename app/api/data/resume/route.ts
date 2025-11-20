@@ -7,11 +7,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
 import {
-  combineFilterFormulas,
   createAirtableRecords,
   hasAirtableConfig,
   listAirtableRecords,
   updateAirtableRecords,
+  type AirtableRecord,
 } from "../../../../lib/db/airtable";
 import {
   BasicInfoSchema,
@@ -164,6 +164,7 @@ const UpdatePayloadSchema = z
 
 type ResumeFields = {
   draftId?: string;
+  resumeId?: string;
   anonKey?: string;
   step1?: string;
   step2?: string;
@@ -180,17 +181,44 @@ function sanitizeFormulaValue(value: string) {
   return value.replace(/'/g, "\'");
 }
 
-function buildFilterFormula(id: string | null, anonKey: string | null) {
-  const filters: Array<string | undefined> = [];
+function buildCandidateFilters(id: string | null, anonKey: string | null) {
+  const filters: Array<{ formula: string; fields: string[] }> = [];
+  const baseFields = [
+    "anonKey",
+    "step1",
+    "step2",
+    "highestEducation",
+    "qa",
+    "selfPr",
+    "summary",
+    "desired",
+  ];
+
   if (id) {
-    const sanitized = sanitizeFormulaValue(id);
-    filters.push(`{draftId}='${sanitized}'`);
+    const sanitizedId = sanitizeFormulaValue(id);
+    filters.push({
+      formula: `{draftId}='${sanitizedId}'`,
+      fields: [...baseFields, "draftId", "resumeId"],
+    });
+    filters.push({
+      formula: `{resumeId}='${sanitizedId}'`,
+      fields: [...baseFields, "resumeId", "draftId"],
+    });
+    filters.push({
+      formula: `RECORD_ID()='${sanitizedId}'`,
+      fields: [...baseFields, "draftId", "resumeId"],
+    });
   }
+
   if (anonKey) {
-    const sanitized = sanitizeFormulaValue(anonKey);
-    filters.push(`{anonKey}='${sanitized}'`);
+    const sanitizedAnon = sanitizeFormulaValue(anonKey);
+    filters.push({
+      formula: `{anonKey}='${sanitizedAnon}'`,
+      fields: [...baseFields, "draftId", "resumeId"],
+    });
   }
-  return combineFilterFormulas(...filters);
+
+  return filters;
 }
 
 function parseJsonField<T>(raw: unknown, schema: z.ZodSchema<T>): T | null {
@@ -205,25 +233,34 @@ function parseJsonField<T>(raw: unknown, schema: z.ZodSchema<T>): T | null {
   }
 }
 
+async function tryListRecords(
+  filterByFormula: string,
+  fields: string[]
+): Promise<AirtableRecord<ResumeFields> | null> {
+  try {
+    const records = await listAirtableRecords<ResumeFields>(TABLE_NAME, {
+      filterByFormula,
+      fields,
+      maxRecords: 1,
+    });
+    return records[0] ?? null;
+  } catch (error) {
+    const message = (error as Error).message;
+    if (message.includes("Unknown field name")) {
+      console.warn("Skipping Airtable query due to missing field", message);
+      return null;
+    }
+    throw error;
+  }
+}
+
 async function findResumeRecord(id: string | null, anonKey: string | null) {
-  const filter = buildFilterFormula(id, anonKey);
-  if (!filter) return null;
-  const records = await listAirtableRecords<ResumeFields>(TABLE_NAME, {
-    filterByFormula: filter,
-    fields: [
-      "draftId",
-      "anonKey",
-      "step1",
-      "step2",
-      "highestEducation",
-      "qa",
-      "selfPr",
-      "summary",
-      "desired",
-    ],
-    maxRecords: 1,
-  });
-  return records[0] ?? null;
+  const candidates = buildCandidateFilters(id, anonKey);
+  for (const { formula, fields } of candidates) {
+    const record = await tryListRecords(formula, Array.from(new Set(fields)));
+    if (record) return record;
+  }
+  return null;
 }
 
 function parseHighestEducation(value: unknown): HighestEducation | null {
@@ -259,7 +296,7 @@ export async function GET(req: NextRequest) {
     }
 
     const record = await findResumeRecord(idParam, anonCookie);
-    const resumeId = record?.fields.draftId ?? idParam ?? null;
+    const resumeId = record?.fields.draftId ?? record?.fields.resumeId ?? record?.id ?? idParam ?? null;
     const basicInfo = record?.fields.step1
       ? parseJsonField<BasicInfo>(record.fields.step1, BasicInfoSchema)
       : null;
@@ -319,7 +356,8 @@ export async function POST(req: NextRequest) {
 
     const existingRecord = await findResumeRecord(bodyId ?? null, anonCookie);
 
-    const resumeId = existingRecord?.fields.draftId ?? bodyId ?? randomUUID();
+    let resumeId =
+      existingRecord?.fields.draftId ?? existingRecord?.fields.resumeId ?? existingRecord?.id ?? bodyId ?? randomUUID();
 
     const anonKey = existingRecord?.fields.anonKey ?? anonCookie ?? generateAnonKey();
 
@@ -339,50 +377,88 @@ export async function POST(req: NextRequest) {
     }
 
     const now = new Date().toISOString();
-    const fields: ResumeFields = {
-      draftId: resumeId,
+    const baseFields: ResumeFields = {
       anonKey,
       updatedAt: now,
     };
 
     if (basicInfo) {
-      fields.step1 = JSON.stringify(basicInfo);
+      baseFields.step1 = JSON.stringify(basicInfo);
     }
     if (status) {
-      fields.step2 = JSON.stringify(status);
+      baseFields.step2 = JSON.stringify(status);
     }
     if (typeof highestEducation !== "undefined") {
-      fields.highestEducation = highestEducation;
+      baseFields.highestEducation = highestEducation;
     }
     if (typeof qa !== "undefined") {
-      fields.qa = JSON.stringify(qa);
+      baseFields.qa = JSON.stringify(qa);
     }
     if (typeof selfPr !== "undefined") {
-      fields.selfPr = selfPr;
+      baseFields.selfPr = selfPr;
     }
     if (typeof summary !== "undefined") {
-      fields.summary = summary;
+      baseFields.summary = summary;
     }
     if (typeof desired !== "undefined") {
-      fields.desired = JSON.stringify(desired);
+      baseFields.desired = JSON.stringify(desired);
     }
 
-    if (existingRecord) {
-      await updateAirtableRecords(TABLE_NAME, [
+    const fieldsWithIds: ResumeFields = { ...baseFields };
+    if (existingRecord?.fields.draftId || (!existingRecord && bodyId)) {
+      fieldsWithIds.draftId = resumeId;
+    }
+    if (existingRecord?.fields.resumeId || (!existingRecord && bodyId)) {
+      fieldsWithIds.resumeId = resumeId;
+    }
+
+    const attemptUpdate = async (fields: ResumeFields) =>
+      updateAirtableRecords(TABLE_NAME, [
         {
-          id: existingRecord.id,
+          id: existingRecord!.id,
           fields,
         },
       ]);
+
+    if (existingRecord) {
+      try {
+        await attemptUpdate(fieldsWithIds);
+      } catch (error) {
+        const message = (error as Error).message;
+        if (message.includes("Unknown field name")) {
+          console.warn("Retrying resume update without id fields", message);
+          await attemptUpdate(baseFields);
+        } else {
+          throw error;
+        }
+      }
     } else {
-      await createAirtableRecords(TABLE_NAME, [
-        {
-          fields: {
-            ...fields,
-            createdAt: now,
+      const attemptCreate = async (fields: ResumeFields) =>
+        createAirtableRecords(TABLE_NAME, [
+          {
+            fields: {
+              ...fields,
+              createdAt: now,
+            },
           },
-        },
-      ]);
+        ]);
+
+      try {
+        const created = await attemptCreate(fieldsWithIds);
+        const createdRecord = created[0];
+        resumeId =
+          createdRecord.fields.draftId ?? createdRecord.fields.resumeId ?? createdRecord.id ?? resumeId;
+      } catch (error) {
+        const message = (error as Error).message;
+        if (!message.includes("Unknown field name")) {
+          throw error;
+        }
+
+        console.warn("Retrying resume creation without id fields", message);
+        const created = await attemptCreate(baseFields);
+        const createdRecord = created[0];
+        resumeId = createdRecord.fields.draftId ?? createdRecord.fields.resumeId ?? createdRecord.id ?? resumeId;
+      }
     }
 
     const response = NextResponse.json({ id: resumeId });
