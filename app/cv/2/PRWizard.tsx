@@ -22,6 +22,8 @@ type ResumeResponse = {
   qa?: CvQa | null;
 };
 
+const STORAGE_KEY = 'resume.resumeId';
+
 const MIN_MESSAGE = '10文字以上で入力してください';
 const MAX_MESSAGE = '600文字以内で入力してください';
 const MIN_LENGTH = 10;
@@ -112,6 +114,8 @@ export default function PRWizard() {
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
   const [isLoading, setIsLoading] = useState(true);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [isGeneratingResume, setIsGeneratingResume] = useState(false);
+  const [resumePreview, setResumePreview] = useState('');
   const [toast, setToast] = useState<ToastState | null>(null);
   const [resumeId, setResumeId] = useState<string | null>(null);
 
@@ -126,6 +130,9 @@ export default function PRWizard() {
 
   useEffect(() => {
     resumeIdRef.current = resumeId;
+    if (typeof window !== 'undefined' && resumeId) {
+      window.localStorage.setItem(STORAGE_KEY, resumeId);
+    }
   }, [resumeId]);
 
   useEffect(() => {
@@ -298,6 +305,66 @@ export default function PRWizard() {
     [saveQa],
   );
 
+  const handleGenerateResume = useCallback(async () => {
+    const storedId =
+      typeof window !== 'undefined' ? window.localStorage.getItem(STORAGE_KEY) : null;
+    if (!storedId) {
+      setToast({
+        message: 'IDが見つかりません。先に基本情報を保存してください。',
+        variant: 'error',
+      });
+      return;
+    }
+
+    const sanitized = sanitizeQa(qaRef.current);
+    const extraNotesRaw = [sanitized.q1, sanitized.q2, sanitized.q3]
+      .filter(Boolean)
+      .join('\n');
+    const extraNotes = extraNotesRaw ? extraNotesRaw.slice(0, 1000) : undefined;
+
+    setIsGeneratingResume(true);
+    try {
+      const res = await fetch('/api/ai/resume', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          resumeId: storedId,
+          locale: 'ja',
+          role: sanitized.q4 || undefined,
+          extraNotes,
+        }),
+      });
+
+      if (!res.ok) {
+        setToast({
+          message: '生成に失敗しました。時間をおいて再試行してください。',
+          variant: 'error',
+        });
+        return;
+      }
+
+      const data = (await res.json()) as { content?: string };
+      if (!data?.content) {
+        setToast({
+          message: '生成結果を取得できませんでした。',
+          variant: 'error',
+        });
+        return;
+      }
+
+      setResumePreview(data.content);
+      setToast({ message: '履歴書を生成しました。', variant: 'success' });
+    } catch (error) {
+      console.error('Failed to generate resume', error);
+      setToast({
+        message: '生成に失敗しました。時間をおいて再試行してください。',
+        variant: 'error',
+      });
+    } finally {
+      setIsGeneratingResume(false);
+    }
+  }, []);
+
   const handleGenerate = useCallback(async () => {
     const ensuredId = await ensureResumeId();
     if (!ensuredId) {
@@ -381,6 +448,7 @@ export default function PRWizard() {
   }, [router, saveQa]);
 
   const isGenerateDisabled = isGenerating || isLoading;
+  const isResumeGenerateDisabled = isGeneratingResume || isLoading;
 
   return (
     <section>
@@ -443,6 +511,35 @@ export default function PRWizard() {
           {saveStatus === 'saving' && <span>保存中…</span>}
           {saveStatus === 'saved' && <span style={{ color: '#0a7' }}>保存しました。</span>}
           {saveStatus === 'error' && null}
+        </div>
+      </div>
+      <div className="cv-card" style={{ marginBottom: 16 }}>
+        <h3 style={{ marginTop: 0, marginBottom: 12 }}>AIで履歴書を生成</h3>
+        <p style={{ marginTop: 0, marginBottom: 16, color: '#444' }}>
+          これまでの回答をもとに、履歴書本文の叩き台を自動作成します。必要に応じて編集してご利用ください。
+        </p>
+        <div className="cv-row" style={{ justifyContent: 'flex-start', gap: 12, flexWrap: 'wrap' }}>
+          <button
+            type="button"
+            className="cv-btn"
+            data-variant="ai"
+            onClick={handleGenerateResume}
+            disabled={isResumeGenerateDisabled}
+          >
+            {isGeneratingResume ? '生成中…' : '履歴書の生成'}
+          </button>
+        </div>
+        <div style={{ marginTop: 16 }}>
+          <label className="cv-label" style={{ display: 'block', marginBottom: 8 }}>
+            AI生成された履歴書（コピーしてご利用ください）
+          </label>
+          <textarea
+            className="cv-textarea"
+            rows={8}
+            value={resumePreview}
+            readOnly
+            placeholder="ここに履歴書のドラフトが表示されます。"
+          />
         </div>
       </div>
       {toast ? (
