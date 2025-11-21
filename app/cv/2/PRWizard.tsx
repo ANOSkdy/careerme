@@ -77,6 +77,8 @@ const EMPTY_TOUCHED: Record<QuestionKey, boolean> = {
   q4: false,
 };
 
+const STORAGE_KEY = 'resume.resumeId';
+
 const EMPTY_ERRORS: Record<QuestionKey, string | undefined> = {
   q1: undefined,
   q2: undefined,
@@ -380,6 +382,20 @@ export default function PRWizard() {
     }
   }, [router, saveQa]);
 
+  const handlePrintResumePdf = useCallback(() => {
+    if (typeof window === 'undefined') return;
+    const storedId = window.localStorage.getItem(STORAGE_KEY) || resumeIdRef.current;
+    if (!storedId) {
+      setToast({
+        message: 'IDが見つかりません。先に履歴書の基本情報を保存してください。',
+        variant: 'error',
+      });
+      return;
+    }
+
+    window.open(`/cv-print/${storedId}`, '_blank', 'noopener,noreferrer');
+  }, []);
+
   const isGenerateDisabled = isGenerating || isLoading;
 
   return (
@@ -437,6 +453,14 @@ export default function PRWizard() {
           </button>
           <button type="button" className="cv-btn primary" onClick={handleNext}>
             次へ
+          </button>
+        </div>
+        <div
+          className="cv-row"
+          style={{ justifyContent: 'flex-end', gap: 12, marginTop: 12, flexWrap: 'wrap' }}
+        >
+          <button type="button" className="cv-btn primary" onClick={handlePrintResumePdf}>
+            履歴書をPDF出力
           </button>
         </div>
         <div role="status" aria-live="polite" style={{ fontSize: 12, marginTop: 12 }}>
