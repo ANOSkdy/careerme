@@ -259,7 +259,7 @@ export default function SelfPRSimplified() {
             textDecoration: 'none',
           }}
         >
-          次へ
+          履歴書の生成
         </a>
       </nav>
     </main>
