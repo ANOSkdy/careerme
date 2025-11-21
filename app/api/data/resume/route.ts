@@ -163,7 +163,7 @@ const UpdatePayloadSchema = z
   });
 
 type ResumeFields = {
-  resumeId?: string;
+  id?: string;
   draftId?: string;
   anonKey?: string;
   step1?: string;
@@ -185,7 +185,7 @@ function buildFilterFormula(id: string | null, anonKey: string | null) {
   const filters: Array<string | undefined> = [];
   if (id) {
     const sanitized = sanitizeFormulaValue(id);
-    filters.push(`OR({resumeId}='${sanitized}', {draftId}='${sanitized}')`);
+    filters.push(`OR({id}='${sanitized}', {draftId}='${sanitized}')`);
   }
   if (anonKey) {
     const sanitized = sanitizeFormulaValue(anonKey);
@@ -212,7 +212,7 @@ async function findResumeRecord(id: string | null, anonKey: string | null) {
   const records = await listAirtableRecords<ResumeFields>(TABLE_NAME, {
     filterByFormula: filter,
     fields: [
-      "resumeId",
+      "id",
       "draftId",
       "anonKey",
       "step1",
@@ -261,7 +261,7 @@ export async function GET(req: NextRequest) {
     }
 
     const record = await findResumeRecord(idParam, anonCookie);
-    const resumeId = record?.fields.resumeId ?? record?.fields.draftId ?? idParam ?? null;
+    const resumeId = record?.fields.id ?? record?.fields.draftId ?? idParam ?? null;
     const basicInfo = record?.fields.step1
       ? parseJsonField<BasicInfo>(record.fields.step1, BasicInfoSchema)
       : null;
@@ -322,10 +322,7 @@ export async function POST(req: NextRequest) {
     const existingRecord = await findResumeRecord(bodyId ?? null, anonCookie);
 
     const resumeId =
-      existingRecord?.fields.resumeId ??
-      existingRecord?.fields.draftId ??
-      bodyId ??
-      randomUUID();
+      existingRecord?.fields.id ?? existingRecord?.fields.draftId ?? bodyId ?? randomUUID();
 
     const anonKey = existingRecord?.fields.anonKey ?? anonCookie ?? generateAnonKey();
 
@@ -346,7 +343,7 @@ export async function POST(req: NextRequest) {
 
     const now = new Date().toISOString();
     const fields: ResumeFields = {
-      resumeId,
+      id: resumeId,
       draftId: resumeId,
       anonKey,
       updatedAt: now,
