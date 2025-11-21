@@ -18,6 +18,11 @@ export default function Step3Client() {
   const [isPending, startTransition] = useTransition();
   const [, startUiTransition] = useTransition();
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [role, setRole] = useState('');
+  const [years, setYears] = useState('');
+  const [headlineKeywords, setHeadlineKeywords] = useState('');
+  const [extraNotes, setExtraNotes] = useState('');
 
   useEffect(() => {
     resumeIdRef.current = resumeId;
@@ -91,11 +96,39 @@ export default function Step3Client() {
       }
       setSaved(null);
       setResult('');
+      const payload: {
+        resumeId: string;
+        role?: string;
+        years?: number;
+        headlineKeywords?: string[];
+        extraNotes?: string;
+      } = { resumeId: ensuredId };
+
+      const roleValue = role.trim();
+      if (roleValue) payload.role = roleValue;
+
+      const yearsValue = years.trim();
+      if (yearsValue) {
+        const parsedYears = Number(yearsValue);
+        if (!Number.isNaN(parsedYears)) {
+          payload.years = parsedYears;
+        }
+      }
+
+      const keywords = headlineKeywords
+        .split(/[\n,]/)
+        .map((kw) => kw.trim())
+        .filter(Boolean);
+      if (keywords.length) payload.headlineKeywords = keywords;
+
+      const notes = extraNotes.trim();
+      if (notes) payload.extraNotes = notes;
+
       try {
         const res = await fetch('/api/ai/summary', {
           method: 'POST',
           headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ resumeId: ensuredId }),
+          body: JSON.stringify(payload),
         });
         const data = await res.json();
         if (data?.ok) {
@@ -126,7 +159,77 @@ export default function Step3Client() {
         <div className="summary-actions" data-print-hidden="true">
           <div className="cv-card" style={{ marginBottom: 16 }}>
             <h3>AIで職務要約を作成</h3>
-            
+
+            <div className="ai-advanced">
+              <button
+                type="button"
+                className="ai-advanced__toggle"
+                onClick={() => setShowAdvanced((prev) => !prev)}
+                aria-expanded={showAdvanced}
+                aria-controls="ai-advanced-panel"
+              >
+                <div>
+                  <p className="ai-advanced__title">AIへの詳細指示（任意）</p>
+                  <p className="ai-advanced__helper">
+                    職種や経験年数、含めたいキーワードがあれば設定してください。
+                  </p>
+                </div>
+                <span
+                  aria-hidden
+                  className={`ai-advanced__chevron ${showAdvanced ? 'is-open' : ''}`}
+                >
+                  ▶
+                </span>
+              </button>
+
+              {showAdvanced && (
+                <div id="ai-advanced-panel" className="ai-advanced__panel">
+                  <label className="cv-field">
+                    <span className="cv-field__label">希望している職種</span>
+                    <input
+                      className="cv-field__input"
+                      value={role}
+                      onChange={(e) => setRole(e.target.value)}
+                      placeholder="例：プロダクトマネージャー"
+                    />
+                  </label>
+
+                  <label className="cv-field">
+                    <span className="cv-field__label">経験年数</span>
+                    <input
+                      className="cv-field__input"
+                      value={years}
+                      onChange={(e) => setYears(e.target.value)}
+                      inputMode="numeric"
+                      placeholder="例：5"
+                    />
+                  </label>
+
+                  <label className="cv-field">
+                    <span className="cv-field__label">含めたいキーワード（カンマ/改行区切り）</span>
+                    <textarea
+                      className="cv-field__textarea"
+                      rows={3}
+                      value={headlineKeywords}
+                      onChange={(e) => setHeadlineKeywords(e.target.value)}
+                      placeholder="例：BtoB, SaaS, プロジェクトマネジメント"
+                    />
+                  </label>
+
+                  <label className="cv-field">
+                    <span className="cv-field__label">補足情報</span>
+                    <textarea
+                      className="cv-field__textarea"
+                      rows={3}
+                      value={extraNotes}
+                      onChange={(e) => setExtraNotes(e.target.value)}
+                      placeholder="例：カジュアルなトーンで、チームリード経験を強調してほしい"
+                    />
+                  </label>
+                </div>
+              )}
+            </div>
+
             <button className="cv-btn summary-ai-button" onClick={doGenerate} disabled={isPending}>
               {isPending ? '生成中…' : 'AIで出力'}
             </button>
@@ -182,6 +285,79 @@ export default function Step3Client() {
           margin-top: 16px;
           font-size: 0.9rem;
           line-height: 1.6;
+        }
+
+        .ai-advanced {
+          border: 1px solid rgba(0, 0, 0, 0.08);
+          border-radius: 12px;
+          margin: 16px 0;
+          background: #f8fafc;
+        }
+
+        .ai-advanced__toggle {
+          align-items: center;
+          background: transparent;
+          border: none;
+          cursor: pointer;
+          display: flex;
+          justify-content: space-between;
+          gap: 8px;
+          padding: 12px 14px;
+          width: 100%;
+        }
+
+        .ai-advanced__title {
+          margin: 0;
+          font-weight: 600;
+        }
+
+        .ai-advanced__helper {
+          margin: 4px 0 0;
+          color: #5b6674;
+          font-size: 0.9rem;
+        }
+
+        .ai-advanced__chevron {
+          display: inline-block;
+          transition: transform 0.2s ease;
+        }
+
+        .ai-advanced__chevron.is-open {
+          transform: rotate(90deg);
+        }
+
+        .ai-advanced__panel {
+          padding: 12px 14px 14px;
+          display: grid;
+          gap: 12px;
+        }
+
+        .cv-field {
+          display: grid;
+          gap: 8px;
+        }
+
+        .cv-field__label {
+          font-size: 0.95rem;
+          font-weight: 600;
+        }
+
+        .cv-field__input,
+        .cv-field__textarea {
+          width: 100%;
+          border: 1px solid rgba(0, 0, 0, 0.14);
+          border-radius: 8px;
+          padding: 10px 12px;
+          font-size: 0.95rem;
+        }
+
+        .cv-field__input:focus,
+        .cv-field__textarea:focus,
+        .ai-advanced__toggle:focus-visible,
+        .summary-ai-button:focus-visible,
+        .cv-btn:focus-visible {
+          outline: 2px solid #2563eb;
+          outline-offset: 2px;
         }
 
         .summary-preview {
