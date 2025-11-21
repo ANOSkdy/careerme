@@ -38,7 +38,7 @@ export default function SummarySimplified() {
         width: '100%',
         minHeight: '100vh',
         margin: 0,
-        padding: '24px 16px 120px',
+        padding: '24px 16px 48px',
         boxSizing: 'border-box',
         backgroundColor: '#F7F9FC',
       }}
@@ -80,39 +80,35 @@ export default function SummarySimplified() {
           }}
           placeholder="ここに生成結果が表示されます"
         />
-      </section>
 
-      <nav
-        style={{
-          position: 'fixed',
-          left: 0,
-          right: 0,
-          bottom: 0,
-          padding: '12px 16px',
-          background: '#FFFFFF',
-          boxShadow: '0 -2px 8px rgba(0,0,0,0.08)',
-          display: 'flex',
-          justifyContent: 'center',
-        }}
-      >
-        <button
-          onClick={handlePdf}
+        <div
           style={{
-            width: 'min(480px, 100%)',
-            textAlign: 'center',
-            padding: '12px 0',
-            borderRadius: 8,
-            border: 'none',
-            background: '#3A75C4',
-            color: '#FFFFFF',
-            fontWeight: 700,
-            boxShadow: '0 4px 10px rgba(58, 117, 196, 0.25)',
+            marginTop: 12,
+            paddingTop: 12,
+            borderTop: '1px solid #E3E8F0',
           }}
-          aria-label="職務経歴書の生成"
+          aria-live="polite"
+          data-print-hidden="true"
         >
-          職務経歴書の生成
-        </button>
-      </nav>
+          <button
+            onClick={handlePdf}
+            style={{
+              width: '100%',
+              textAlign: 'center',
+              padding: '12px 0',
+              borderRadius: 8,
+              border: 'none',
+              background: '#3A75C4',
+              color: '#FFFFFF',
+              fontWeight: 700,
+              boxShadow: '0 4px 10px rgba(58, 117, 196, 0.25)',
+            }}
+            aria-label="職務経歴書の生成"
+          >
+            職務経歴書の生成
+          </button>
+        </div>
+      </section>
     </main>
   );
 }
