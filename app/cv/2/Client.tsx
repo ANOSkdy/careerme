@@ -219,7 +219,7 @@ export default function Step2Client() {
         </div>
         <div className="cv-row" style={{ marginTop: 12 }}>
           <Link href="/cv/3">
-            <span className="cv-btn">次へ（要約）</span>
+            <span className="cv-btn">履歴書の生成</span>
           </Link>
         </div>
         <div className="summary-status" role="status" aria-live="polite">
