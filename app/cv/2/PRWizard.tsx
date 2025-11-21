@@ -436,7 +436,7 @@ export default function PRWizard() {
             {isGenerating ? '生成中…' : 'AIで自己PRを生成'}
           </button>
           <button type="button" className="cv-btn primary" onClick={handleNext}>
-            次へ
+            履歴書の生成
           </button>
         </div>
         <div role="status" aria-live="polite" style={{ fontSize: 12, marginTop: 12 }}>
