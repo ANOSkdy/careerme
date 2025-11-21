@@ -18,6 +18,11 @@ export default function Step3Client() {
   const [isPending, startTransition] = useTransition();
   const [, startUiTransition] = useTransition();
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const handlePrint = useCallback(() => {
+    if (typeof window !== 'undefined') {
+      window.print();
+    }
+  }, []);
 
   useEffect(() => {
     resumeIdRef.current = resumeId;
@@ -159,6 +164,16 @@ export default function Step3Client() {
               </p>
             )}
           </div>
+          <div className="summary-preview__actions" data-print-hidden="true">
+            <button
+              type="button"
+              className="cv-btn ghost summary-preview__print"
+              aria-label="職務経歴書の生成"
+              onClick={handlePrint}
+            >
+              職務経歴書の生成
+            </button>
+          </div>
         </div>
       </div>
       <style jsx>{`
@@ -219,6 +234,14 @@ export default function Step3Client() {
           margin: 0;
           color: #555;
           line-height: 1.6;
+        }
+
+        .summary-preview__actions {
+          margin-top: 0.25rem;
+        }
+
+        .summary-preview__print {
+          width: 100%;
         }
 
         @media (min-width: 960px) {
