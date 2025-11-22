@@ -5,6 +5,7 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   createAirtableRecords,
   deleteAirtableRecords,
+  hasAirtableConfig,
   listAirtableRecords,
   type AirtableRecord,
 } from "../../../../lib/db/airtable";
@@ -86,6 +87,14 @@ export async function GET(req: NextRequest) {
       return badRequest("resumeId is required");
     }
 
+    if (!hasAirtableConfig()) {
+      console.warn("[API] Airtable config missing. Returning empty experience list.");
+      return NextResponse.json({
+        ok: true,
+        items: [],
+      });
+    }
+
     const records = await listAirtableRecords<ExperienceFields>(TABLE_NAME, {
       filterByFormula: toFilterFormula(resumeId),
       fields: [
@@ -132,6 +141,11 @@ export async function POST(req: NextRequest) {
     const parsed = ExperienceListSchema.safeParse(items);
     if (!parsed.success) {
       return NextResponse.json({ ok: false, issues: parsed.error.issues }, { status: 400 });
+    }
+
+    if (!hasAirtableConfig()) {
+      console.warn("[API] Airtable config missing. Skipping experience persistence.");
+      return NextResponse.json({ ok: true, count: parsed.data.length });
     }
 
     const existing = await listAirtableRecords<ExperienceFields>(TABLE_NAME, {
