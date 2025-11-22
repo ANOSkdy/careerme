@@ -1,19 +1,6 @@
-import type {
-  BasicInfo,
-  CvQa,
-  HighestEducation,
-  ResumeStatus,
-} from "../validation/schemas";
+import type { Resume } from "../validation/schemas";
 
-export type MemoryResumeRecord = {
-  id: string;
-  anonKey: string;
-  basicInfo?: BasicInfo;
-  status?: ResumeStatus;
-  highestEducation?: HighestEducation;
-  qa?: CvQa;
-  selfPr?: string;
-  summary?: string;
+export type MemoryResumeRecord = Resume & {
   createdAt: string;
   updatedAt: string;
 };

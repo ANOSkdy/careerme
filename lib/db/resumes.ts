@@ -1,36 +1,68 @@
-import { updateAirtableRecords } from './airtable';
+import type { AirtableRecord } from "./airtable";
+import { HighestEducationSchema, type Resume } from "../validation/schemas";
 
-const DEFAULT_RESUME_TABLE = 'Resumes';
+export const RESUME_AIRTABLE_FIELDS = {
+  id: "id",
+  userId: "user_id",
+  highestEducation: "highest_education",
+  stepCompleted: "step_completed",
+  desiredLocations: "desired_locations",
+  desiredRoles: "desired_roles",
+  desiredIndustries: "desired_industries",
+  selfPrDraft: "selfpr_draft",
+  selfPrFinal: "selfpr_final",
+  summaryDraft: "summary_draft",
+  summaryFinal: "summary_final",
+  createdAt: "created_at",
+  updatedAt: "updated_at",
+} as const;
 
-function getResumeTableName(): string {
-  return process.env.AIRTABLE_TABLE_RESUMES || DEFAULT_RESUME_TABLE;
+type AirtableFields = Record<string, unknown>;
+
+export function airtableToResume(record: AirtableRecord<AirtableFields>): Resume {
+  const f = record.fields;
+  const highestEducationValue = f[
+    RESUME_AIRTABLE_FIELDS.highestEducation
+  ] as string | undefined;
+  const highestEducationResult = highestEducationValue
+    ? HighestEducationSchema.safeParse(highestEducationValue)
+    : null;
+  return {
+    id: String(f[RESUME_AIRTABLE_FIELDS.id]),
+    userId: String(f[RESUME_AIRTABLE_FIELDS.userId]),
+    highestEducation: highestEducationResult?.success
+      ? highestEducationResult.data
+      : undefined,
+    stepCompleted: f[RESUME_AIRTABLE_FIELDS.stepCompleted] as number | undefined,
+    selfPr: {
+      draft: (f[RESUME_AIRTABLE_FIELDS.selfPrDraft] as string | undefined) ?? "",
+      final: (f[RESUME_AIRTABLE_FIELDS.selfPrFinal] as string | undefined) ?? "",
+    },
+    summary: {
+      draft: (f[RESUME_AIRTABLE_FIELDS.summaryDraft] as string | undefined) ?? "",
+      final: (f[RESUME_AIRTABLE_FIELDS.summaryFinal] as string | undefined) ?? "",
+    },
+    desired: {
+      locations: (f[RESUME_AIRTABLE_FIELDS.desiredLocations] as string[] | undefined) ?? [],
+      roles: (f[RESUME_AIRTABLE_FIELDS.desiredRoles] as string[] | undefined) ?? [],
+      industries:
+        (f[RESUME_AIRTABLE_FIELDS.desiredIndustries] as string[] | undefined) ?? [],
+    },
+  };
 }
 
-type DraftFields = Partial<{
-  selfpr_draft: string;
-  summary_draft: string;
-}>;
-
-export async function updateResumeDraft(
-  resumeId: string,
-  fields: DraftFields
-): Promise<void> {
-  if (!resumeId) {
-    throw new Error('resumeId is required to update a resume draft');
-  }
-  if (!fields || !Object.keys(fields).length) {
-    throw new Error('At least one field must be provided to update a resume draft');
-  }
-
-  const table = getResumeTableName();
-  const records = await updateAirtableRecords(table, [
-    {
-      id: resumeId,
-      fields,
-    },
-  ]);
-
-  if (!records.length) {
-    throw new Error('Airtable response did not include an updated record');
-  }
+export function resumeToAirtableFields(resume: Resume): AirtableFields {
+  return {
+    [RESUME_AIRTABLE_FIELDS.id]: resume.id,
+    [RESUME_AIRTABLE_FIELDS.userId]: resume.userId,
+    [RESUME_AIRTABLE_FIELDS.highestEducation]: resume.highestEducation ?? null,
+    [RESUME_AIRTABLE_FIELDS.stepCompleted]: resume.stepCompleted ?? null,
+    [RESUME_AIRTABLE_FIELDS.selfPrDraft]: resume.selfPr?.draft ?? "",
+    [RESUME_AIRTABLE_FIELDS.selfPrFinal]: resume.selfPr?.final ?? "",
+    [RESUME_AIRTABLE_FIELDS.summaryDraft]: resume.summary?.draft ?? "",
+    [RESUME_AIRTABLE_FIELDS.summaryFinal]: resume.summary?.final ?? "",
+    [RESUME_AIRTABLE_FIELDS.desiredLocations]: resume.desired?.locations ?? [],
+    [RESUME_AIRTABLE_FIELDS.desiredRoles]: resume.desired?.roles ?? [],
+    [RESUME_AIRTABLE_FIELDS.desiredIndustries]: resume.desired?.industries ?? [],
+  };
 }

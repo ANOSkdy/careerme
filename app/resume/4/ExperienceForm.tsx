@@ -19,7 +19,6 @@ import type { SaveState } from "../_components/hooks/useAutoSave";
 import StepNav from "../_components/StepNav";
 import {
   ExperienceListSchema,
-  ResumeSchema,
   type ExperienceItem,
 } from "../../../lib/validation/schemas";
 
@@ -36,7 +35,7 @@ const emptyRow: ExperienceItem = {
 
 const FormSchema = z.object({
   experiences: ExperienceListSchema,
-  certifications: ResumeSchema.shape.certifications.default([]),
+  certifications: z.array(z.string()).default([]),
 });
 
 type FormValues = z.infer<typeof FormSchema>;
