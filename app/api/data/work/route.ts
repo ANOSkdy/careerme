@@ -7,6 +7,7 @@ import {
   combineFilterFormulas,
   createAirtableRecords,
   deleteAirtableRecords,
+  hasAirtableConfig,
   listAirtableRecords,
   updateAirtableRecords,
 } from "../../../../lib/db/airtable";
@@ -89,6 +90,11 @@ function toErrorResponse(error: unknown, status = 500) {
 
 export async function GET(req: NextRequest) {
   try {
+    if (!hasAirtableConfig()) {
+      console.warn("[API] Airtable config missing. Returning empty work history list.");
+      return NextResponse.json({ ok: true, items: [] });
+    }
+
     const resumeId = req.nextUrl.searchParams.get("resumeId");
     if (!resumeId) {
       return toErrorResponse(new Error("resumeId is required"), 400);
@@ -130,6 +136,11 @@ export async function POST(req: NextRequest) {
       return toErrorResponse(parsed.error, 400);
     }
 
+    if (!hasAirtableConfig()) {
+      console.warn("[API] Airtable config missing. Skipping work history persistence.");
+      return NextResponse.json({ ok: true, id: "temp-local-id", saved: false });
+    }
+
     const { id, resumeId, data } = parsed.data;
     const fields = toAirtableFields(resumeId, data);
 
@@ -157,6 +168,11 @@ export async function POST(req: NextRequest) {
 
 export async function DELETE(req: NextRequest) {
   try {
+    if (!hasAirtableConfig()) {
+      console.warn("[API] Airtable config missing. Skipping work history deletion.");
+      return NextResponse.json({ ok: true, deleted: false });
+    }
+
     const id = req.nextUrl.searchParams.get("id");
     if (!id) {
       return toErrorResponse(new Error("id is required"), 400);
