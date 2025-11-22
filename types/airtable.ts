@@ -33,7 +33,7 @@ export interface AirtableResume extends AirtableSystemFields {
   summaryDraft?: string;
   summaryFinal?: string;
   pdfUrl?: string;
-  stepCompleted?: string;
+  stepCompleted?: number;
 }
 
 export interface AirtableEducation extends AirtableSystemFields {
@@ -116,7 +116,7 @@ export const AirtableResumeSchema = AirtableSystemSchema.extend({
   summaryDraft: z.string().optional(),
   summaryFinal: z.string().optional(),
   pdfUrl: z.string().url().optional(),
-  stepCompleted: z.string().optional(),
+  stepCompleted: numberFromUnknown.optional(),
 });
 
 export const AirtableEducationSchema = AirtableSystemSchema.extend({

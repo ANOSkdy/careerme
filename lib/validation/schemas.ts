@@ -356,10 +356,29 @@ export const ExperienceListSchema = z
 export const ResumeFreeTextSchema = z.string().max(2000);
 
 export const ResumeSchema = z.object({
-  certifications: z.array(z.string()).optional(),
-  qa: CvQaSchema.optional(),
-  selfPr: ResumeFreeTextSchema.optional(),
-  summary: ResumeFreeTextSchema.optional(),
+  id: z.string().min(1),
+  userId: z.string().min(1),
+  highestEducation: HighestEducationSchema.optional(),
+  stepCompleted: z.number().int().optional(),
+  selfPr: z
+    .object({
+      draft: ResumeFreeTextSchema.optional(),
+      final: ResumeFreeTextSchema.optional(),
+    })
+    .optional(),
+  summary: z
+    .object({
+      draft: ResumeFreeTextSchema.optional(),
+      final: ResumeFreeTextSchema.optional(),
+    })
+    .optional(),
+  desired: z
+    .object({
+      locations: z.array(z.string()).optional(),
+      roles: z.array(z.string()).optional(),
+      industries: z.array(z.string()).optional(),
+    })
+    .optional(),
 });
 
 export type Resume = z.infer<typeof ResumeSchema>;

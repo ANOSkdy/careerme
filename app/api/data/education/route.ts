@@ -2,24 +2,11 @@ export const runtime = "nodejs";
 
 import { NextRequest, NextResponse } from "next/server";
 
-import {
-  combineFilterFormulas,
-  createAirtableRecords,
-  deleteAirtableRecords,
-  hasAirtableConfig,
-  listAirtableRecords,
-  type AirtableRecord,
-} from "../../../../lib/db/airtable";
+import { createAirtableRecords, deleteAirtableRecords, hasAirtableConfig, listAirtableRecords, type AirtableRecord } from "../../../../lib/db/airtable";
 import { EducationListSchema } from "../../../../lib/validation/schemas";
-import {
-  getMemoryStore,
-  type MemoryEducationRecord,
-  type MemoryResumeRecord,
-} from "../../../../lib/db/memory";
-import { readAnonKey, setAnonCookie } from "../../../../lib/utils/anon";
+import { getMemoryStore, type MemoryEducationRecord } from "../../../../lib/db/memory";
 
 const TABLE_NAME = process.env.AIRTABLE_TABLE_EDUCATION ?? "Education";
-const RESUME_TABLE_NAME = process.env.AIRTABLE_TABLE_RESUME ?? "Resumes";
 const WRITE_BATCH_SIZE = 10;
 const hasAirtable = hasAirtableConfig();
 const memoryStore = getMemoryStore();
@@ -45,11 +32,6 @@ type EducationRecord = {
   start: string;
   end: string;
   present: boolean;
-};
-
-type ResumeFields = {
-  resumeId?: string;
-  anonKey?: string;
 };
 
 function getMemoryEducationRecords(resumeId: string): MemoryEducationRecord[] {
@@ -86,88 +68,12 @@ function toFilterFormula(id: string) {
   return `{resumeId}='${sanitized}'`;
 }
 
-function sanitizeFormulaValue(value: string) {
-  return value.replace(/'/g, "\\'");
-}
-
 function chunk<T>(values: T[], size: number) {
   const result: T[][] = [];
   for (let index = 0; index < values.length; index += size) {
     result.push(values.slice(index, index + size));
   }
   return result;
-}
-
-function findMemoryResume(
-  id: string | null,
-  anonKey: string | null
-): MemoryResumeRecord | null {
-  if (id && memoryStore.resumes.has(id)) {
-    return memoryStore.resumes.get(id) ?? null;
-  }
-  if (anonKey) {
-    for (const record of memoryStore.resumes.values()) {
-      if (record.anonKey === anonKey) {
-        return record;
-      }
-    }
-  }
-  return null;
-}
-
-function buildResumeFilter(id: string | null, anonKey: string | null) {
-  const filters: Array<string | undefined> = [];
-  if (id) {
-    const sanitized = sanitizeFormulaValue(id);
-    filters.push(`{resumeId}='${sanitized}'`);
-  }
-  if (anonKey) {
-    const sanitized = sanitizeFormulaValue(anonKey);
-    filters.push(`{anonKey}='${sanitized}'`);
-  }
-  return combineFilterFormulas(...filters);
-}
-
-async function findAirtableResumeRecord(
-  id: string | null,
-  anonKey: string | null
-): Promise<AirtableRecord<ResumeFields> | null> {
-  const filter = buildResumeFilter(id, anonKey);
-  if (!filter) return null;
-  const records = await listAirtableRecords<ResumeFields>(RESUME_TABLE_NAME, {
-    filterByFormula: filter,
-    fields: ["resumeId", "anonKey"],
-    maxRecords: 1,
-  });
-  return records[0] ?? null;
-}
-
-type ResumeContext = {
-  resumeId: string | null;
-  anonKey: string | null;
-  found: boolean;
-};
-
-async function resolveResumeContext(
-  id: string | null,
-  anonKey: string | null
-): Promise<ResumeContext> {
-  if (!hasAirtable) {
-    const record = findMemoryResume(id, anonKey);
-    if (record) {
-      return { resumeId: record.id, anonKey: record.anonKey, found: true };
-    }
-    return { resumeId: null, anonKey, found: false };
-  }
-
-  const record = await findAirtableResumeRecord(id, anonKey);
-  if (record) {
-    const resumeId = record.fields.resumeId ?? null;
-    const anon = record.fields.anonKey ?? anonKey ?? null;
-    return { resumeId, anonKey: anon, found: Boolean(resumeId) };
-  }
-
-  return { resumeId: null, anonKey, found: false };
 }
 
 function normalizeRecord(record: AirtableRecord<EducationFields>): EducationRecord {
@@ -194,30 +100,19 @@ function serverError(error: unknown) {
   return NextResponse.json({ ok: false, error: message }, { status: 500 });
 }
 
-function resumeNotFound() {
-  return NextResponse.json({ ok: false, error: "resume not found" }, { status: 404 });
-}
-
 export async function GET(req: NextRequest) {
   try {
     const search = req.nextUrl.searchParams;
     const idParam = search.get("resumeId") ?? search.get("draftId");
-    const anonCookie = readAnonKey(req);
-    const context = await resolveResumeContext(idParam, anonCookie);
-    const resumeId = context.resumeId;
-    const cookieValue = context.anonKey ?? anonCookie;
+    const resumeId = idParam;
 
     if (!resumeId) {
-      const response = NextResponse.json({ ok: true, items: [] });
-      if (cookieValue) {
-        setAnonCookie(response, cookieValue);
-      }
-      return response;
+      return NextResponse.json({ ok: true, items: [] });
     }
 
     if (!hasAirtable) {
       const items = getMemoryEducationRecords(resumeId);
-      const response = NextResponse.json({
+      return NextResponse.json({
         ok: true,
         items: items.map(({ schoolName, faculty, start, end, present }) => ({
           schoolName,
@@ -227,10 +122,6 @@ export async function GET(req: NextRequest) {
           present,
         })),
       });
-      if (cookieValue) {
-        setAnonCookie(response, cookieValue);
-      }
-      return response;
     }
 
     const records = await listAirtableRecords<EducationFields>(TABLE_NAME, {
@@ -248,14 +139,10 @@ export async function GET(req: NextRequest) {
       ],
     });
 
-    const response = NextResponse.json({
+    return NextResponse.json({
       ok: true,
       items: records.map((record) => normalizeRecord(record)),
     });
-    if (cookieValue) {
-      setAnonCookie(response, cookieValue);
-    }
-    return response;
   } catch (error) {
     console.error("Failed to fetch education records", error);
     return serverError(error);
@@ -286,13 +173,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: false, issues: parsed.error.issues }, { status: 400 });
     }
 
-    const anonCookie = readAnonKey(req);
-    const context = await resolveResumeContext(resumeId, anonCookie);
-    const targetResumeId = context.resumeId;
-    if (!targetResumeId || !context.found) {
-      return resumeNotFound();
-    }
-    const cookieValue = context.anonKey ?? anonCookie;
+    const targetResumeId = resumeId;
 
     if (!hasAirtable) {
       const now = Date.now();
@@ -306,11 +187,7 @@ export async function POST(req: NextRequest) {
         present: Boolean(item.present),
       }));
       setMemoryEducationRecords(targetResumeId, records);
-      const response = NextResponse.json({ ok: true, count: records.length });
-      if (cookieValue) {
-        setAnonCookie(response, cookieValue);
-      }
-      return response;
+      return NextResponse.json({ ok: true, count: records.length });
     }
 
     const existing = await listAirtableRecords<EducationFields>(TABLE_NAME, {
@@ -350,11 +227,7 @@ export async function POST(req: NextRequest) {
       await createAirtableRecords(TABLE_NAME, group);
     }
 
-    const response = NextResponse.json({ ok: true, count: parsed.data.length });
-    if (cookieValue) {
-      setAnonCookie(response, cookieValue);
-    }
-    return response;
+    return NextResponse.json({ ok: true, count: parsed.data.length });
   } catch (error) {
     console.error("Failed to save education records", error);
     return serverError(error);
