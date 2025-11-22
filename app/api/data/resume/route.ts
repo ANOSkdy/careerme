@@ -13,6 +13,7 @@ import {
   listAirtableRecords,
   updateAirtableRecords,
 } from "../../../../lib/db/airtable";
+import { AIRTABLE_FIELDS, AIRTABLE_TABLES } from "../../../../lib/airtable/mapping";
 import {
   BasicInfoSchema,
   CvQaSchema,
@@ -29,9 +30,25 @@ import {
 import { generateAnonKey, readAnonKey, setAnonCookie } from "../../../../lib/utils/anon";
 import { getMemoryStore, type MemoryResumeRecord } from "../../../../lib/db/memory";
 
-const TABLE_NAME = process.env.AIRTABLE_TABLE_RESUME ?? "Resumes";
+const TABLE_NAME = process.env.AIRTABLE_TABLE_RESUME ?? AIRTABLE_TABLES.RESUMES;
 const hasAirtable = hasAirtableConfig();
 const memoryStore = getMemoryStore();
+
+const RESUME_FIELDS = AIRTABLE_FIELDS[AIRTABLE_TABLES.RESUMES];
+const resumeFieldMap = RESUME_FIELDS as Record<string, string>;
+const RESUME_FIELD_NAMES = {
+  id: resumeFieldMap.id ?? "id",
+  anonKey: resumeFieldMap.anonKey ?? "anonKey",
+  step1: resumeFieldMap.step1 ?? "step1",
+  step2: resumeFieldMap.step2 ?? "step2",
+  highestEducation: resumeFieldMap.highestEducation ?? "highestEducation",
+  qa: resumeFieldMap.qa ?? "qa",
+  selfPr: resumeFieldMap.selfPr ?? "selfPr",
+  summary: resumeFieldMap.summary ?? "summary",
+  desired: resumeFieldMap.desired ?? "desired",
+  createdAt: resumeFieldMap.createdAt ?? "createdAt",
+  updatedAt: resumeFieldMap.updatedAt ?? "updatedAt",
+};
 
 type MemoryResumeWithDesired = MemoryResumeRecord & { desired?: DesiredConditions };
 
@@ -162,19 +179,8 @@ const UpdatePayloadSchema = z
     });
   });
 
-type ResumeFields = {
-  id?: string;
-  anonKey?: string;
-  step1?: string;
-  step2?: string;
-  highestEducation?: string;
-  qa?: string;
-  selfPr?: string;
-  summary?: string;
-  desired?: string;
-  createdAt?: string;
-  updatedAt?: string;
-};
+type ResumeFields = Partial<Record<(typeof RESUME_FIELD_NAMES)[keyof typeof RESUME_FIELD_NAMES], string>> &
+  Partial<Record<string, string>>;
 
 function sanitizeFormulaValue(value: string) {
   return value.replace(/'/g, "\'");
@@ -184,11 +190,11 @@ function buildFilterFormula(id: string | null, anonKey: string | null) {
   const filters: Array<string | undefined> = [];
   if (id) {
     const sanitized = sanitizeFormulaValue(id);
-    filters.push(`{id}='${sanitized}'`);
+    filters.push(`{${RESUME_FIELD_NAMES.id}}='${sanitized}'`);
   }
   if (anonKey) {
     const sanitized = sanitizeFormulaValue(anonKey);
-    filters.push(`{anonKey}='${sanitized}'`);
+    filters.push(`{${RESUME_FIELD_NAMES.anonKey}}='${sanitized}'`);
   }
   return combineFilterFormulas(...filters);
 }
@@ -211,15 +217,15 @@ async function findResumeRecord(id: string | null, anonKey: string | null) {
   const records = await listAirtableRecords<ResumeFields>(TABLE_NAME, {
     filterByFormula: filter,
     fields: [
-      "id",
-      "anonKey",
-      "step1",
-      "step2",
-      "highestEducation",
-      "qa",
-      "selfPr",
-      "summary",
-      "desired",
+      RESUME_FIELD_NAMES.id,
+      RESUME_FIELD_NAMES.anonKey,
+      RESUME_FIELD_NAMES.step1,
+      RESUME_FIELD_NAMES.step2,
+      RESUME_FIELD_NAMES.highestEducation,
+      RESUME_FIELD_NAMES.qa,
+      RESUME_FIELD_NAMES.selfPr,
+      RESUME_FIELD_NAMES.summary,
+      RESUME_FIELD_NAMES.desired,
     ],
     maxRecords: 1,
   });
@@ -259,21 +265,33 @@ export async function GET(req: NextRequest) {
     }
 
     const record = await findResumeRecord(idParam, anonCookie);
-    const resumeId = record?.fields.id ?? idParam ?? null;
-    const basicInfo = record?.fields.step1
-      ? parseJsonField<BasicInfo>(record.fields.step1, BasicInfoSchema)
+    const resumeId = record?.fields[RESUME_FIELD_NAMES.id] ?? idParam ?? null;
+    const basicInfo = record?.fields[RESUME_FIELD_NAMES.step1]
+      ? parseJsonField<BasicInfo>(record.fields[RESUME_FIELD_NAMES.step1], BasicInfoSchema)
       : null;
-    const status = record?.fields.step2
-      ? parseJsonField<ResumeStatus>(record.fields.step2, ResumeStatusSchema)
+    const status = record?.fields[RESUME_FIELD_NAMES.step2]
+      ? parseJsonField<ResumeStatus>(
+          record.fields[RESUME_FIELD_NAMES.step2],
+          ResumeStatusSchema
+        )
       : null;
-    const highestEducation = parseHighestEducation(record?.fields.highestEducation);
-    const qa = record?.fields.qa
-      ? parseJsonField<CvQa>(record.fields.qa, CvQaSchema)
+    const highestEducation = parseHighestEducation(record?.fields[RESUME_FIELD_NAMES.highestEducation]);
+    const qa = record?.fields[RESUME_FIELD_NAMES.qa]
+      ? parseJsonField<CvQa>(record.fields[RESUME_FIELD_NAMES.qa], CvQaSchema)
       : null;
-    const selfPr = typeof record?.fields.selfPr === "string" ? record.fields.selfPr : null;
-    const summary = typeof record?.fields.summary === "string" ? record.fields.summary : null;
-    const desired = record?.fields.desired
-      ? parseJsonField<DesiredConditions>(record.fields.desired, DesiredConditionsSchema)
+    const selfPr =
+      typeof record?.fields[RESUME_FIELD_NAMES.selfPr] === "string"
+        ? record.fields[RESUME_FIELD_NAMES.selfPr]
+        : null;
+    const summary =
+      typeof record?.fields[RESUME_FIELD_NAMES.summary] === "string"
+        ? record.fields[RESUME_FIELD_NAMES.summary]
+        : null;
+    const desired = record?.fields[RESUME_FIELD_NAMES.desired]
+      ? parseJsonField<DesiredConditions>(
+          record.fields[RESUME_FIELD_NAMES.desired],
+          DesiredConditionsSchema
+        )
       : null;
 
     const response = NextResponse.json({
@@ -287,7 +305,7 @@ export async function GET(req: NextRequest) {
       desired,
     });
 
-    const anonKey = record?.fields.anonKey ?? anonCookie ?? generateAnonKey();
+    const anonKey = record?.fields[RESUME_FIELD_NAMES.anonKey] ?? anonCookie ?? generateAnonKey();
     setAnonCookie(response, anonKey);
 
     return response;
@@ -319,9 +337,10 @@ export async function POST(req: NextRequest) {
 
     const existingRecord = await findResumeRecord(bodyId ?? null, anonCookie);
 
-    const resumeId = existingRecord?.fields.id ?? bodyId ?? randomUUID();
+    const resumeId = existingRecord?.fields[RESUME_FIELD_NAMES.id] ?? bodyId ?? randomUUID();
 
-    const anonKey = existingRecord?.fields.anonKey ?? anonCookie ?? generateAnonKey();
+    const anonKey =
+      existingRecord?.fields[RESUME_FIELD_NAMES.anonKey] ?? anonCookie ?? generateAnonKey();
 
     const hasUpdates =
       Boolean(basicInfo) ||
@@ -340,31 +359,31 @@ export async function POST(req: NextRequest) {
 
     const now = new Date().toISOString();
     const fields: ResumeFields = {
-      id: resumeId,
-      anonKey,
-      updatedAt: now,
+      [RESUME_FIELD_NAMES.id]: resumeId,
+      [RESUME_FIELD_NAMES.anonKey]: anonKey,
+      [RESUME_FIELD_NAMES.updatedAt]: now,
     };
 
     if (basicInfo) {
-      fields.step1 = JSON.stringify(basicInfo);
+      fields[RESUME_FIELD_NAMES.step1] = JSON.stringify(basicInfo);
     }
     if (status) {
-      fields.step2 = JSON.stringify(status);
+      fields[RESUME_FIELD_NAMES.step2] = JSON.stringify(status);
     }
     if (typeof highestEducation !== "undefined") {
-      fields.highestEducation = highestEducation;
+      fields[RESUME_FIELD_NAMES.highestEducation] = highestEducation;
     }
     if (typeof qa !== "undefined") {
-      fields.qa = JSON.stringify(qa);
+      fields[RESUME_FIELD_NAMES.qa] = JSON.stringify(qa);
     }
     if (typeof selfPr !== "undefined") {
-      fields.selfPr = selfPr;
+      fields[RESUME_FIELD_NAMES.selfPr] = selfPr;
     }
     if (typeof summary !== "undefined") {
-      fields.summary = summary;
+      fields[RESUME_FIELD_NAMES.summary] = summary;
     }
     if (typeof desired !== "undefined") {
-      fields.desired = JSON.stringify(desired);
+      fields[RESUME_FIELD_NAMES.desired] = JSON.stringify(desired);
     }
 
     if (existingRecord) {
@@ -379,7 +398,7 @@ export async function POST(req: NextRequest) {
         {
           fields: {
             ...fields,
-            createdAt: now,
+            [RESUME_FIELD_NAMES.createdAt]: now,
           },
         },
       ]);
