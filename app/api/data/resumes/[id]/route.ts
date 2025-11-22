@@ -1,4 +1,6 @@
-import { NextRequest } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+
+import { hasAirtableConfig } from '../../../../../lib/db/airtable';
 
 export const runtime = 'nodejs';
 
@@ -19,6 +21,11 @@ type RouteContext = {
 };
 
 export async function GET(_req: NextRequest, context: RouteContext) {
+  if (!hasAirtableConfig()) {
+    console.warn('[API] Airtable config missing. Returning null for resume fetch.');
+    return NextResponse.json(null);
+  }
+
   const { id } = await context.params;
   if (!id) {
     return json({ ok: false, error: { message: 'id is required' } }, 400);
