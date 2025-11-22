@@ -26,7 +26,6 @@ const memoryStore = getMemoryStore();
 
 type EducationFields = {
   resumeId?: string;
-  draftId?: string;
   schoolName?: string;
   faculty?: string;
   school?: string;
@@ -50,7 +49,6 @@ type EducationRecord = {
 
 type ResumeFields = {
   resumeId?: string;
-  draftId?: string;
   anonKey?: string;
 };
 
@@ -85,7 +83,7 @@ function sanitizeId(id: string) {
 
 function toFilterFormula(id: string) {
   const sanitized = sanitizeId(id);
-  return `OR({resumeId}='${sanitized}', {draftId}='${sanitized}')`;
+  return `{resumeId}='${sanitized}'`;
 }
 
 function sanitizeFormulaValue(value: string) {
@@ -121,7 +119,7 @@ function buildResumeFilter(id: string | null, anonKey: string | null) {
   const filters: Array<string | undefined> = [];
   if (id) {
     const sanitized = sanitizeFormulaValue(id);
-    filters.push(`OR({resumeId}='${sanitized}', {draftId}='${sanitized}')`);
+    filters.push(`{resumeId}='${sanitized}'`);
   }
   if (anonKey) {
     const sanitized = sanitizeFormulaValue(anonKey);
@@ -138,7 +136,7 @@ async function findAirtableResumeRecord(
   if (!filter) return null;
   const records = await listAirtableRecords<ResumeFields>(RESUME_TABLE_NAME, {
     filterByFormula: filter,
-    fields: ["resumeId", "draftId", "anonKey"],
+    fields: ["resumeId", "anonKey"],
     maxRecords: 1,
   });
   return records[0] ?? null;
@@ -164,7 +162,7 @@ async function resolveResumeContext(
 
   const record = await findAirtableResumeRecord(id, anonKey);
   if (record) {
-    const resumeId = record.fields.resumeId ?? record.fields.draftId ?? null;
+    const resumeId = record.fields.resumeId ?? null;
     const anon = record.fields.anonKey ?? anonKey ?? null;
     return { resumeId, anonKey: anon, found: Boolean(resumeId) };
   }
@@ -239,7 +237,6 @@ export async function GET(req: NextRequest) {
       filterByFormula: toFilterFormula(resumeId),
       fields: [
         "resumeId",
-        "draftId",
         "schoolName",
         "faculty",
         "school",
@@ -318,7 +315,7 @@ export async function POST(req: NextRequest) {
 
     const existing = await listAirtableRecords<EducationFields>(TABLE_NAME, {
       filterByFormula: toFilterFormula(targetResumeId),
-      fields: ["resumeId", "draftId"],
+      fields: ["resumeId"],
     });
 
     if (existing.length) {
@@ -336,7 +333,6 @@ export async function POST(req: NextRequest) {
     const payload = parsed.data.map((item) => ({
       fields: {
         resumeId: targetResumeId,
-        draftId: targetResumeId,
         schoolName: item.schoolName,
         faculty: item.faculty ?? "",
         school: item.schoolName,

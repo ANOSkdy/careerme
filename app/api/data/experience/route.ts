@@ -15,7 +15,6 @@ const WRITE_BATCH_SIZE = 10;
 
 type ExperienceFields = {
   resumeId?: string;
-  draftId?: string;
   companyName?: string;
   jobTitle?: string;
   start?: string;
@@ -43,7 +42,7 @@ function sanitizeId(value: string) {
 
 function toFilterFormula(id: string) {
   const sanitized = sanitizeId(id);
-  return `OR({resumeId}='${sanitized}', {draftId}='${sanitized}')`;
+  return `{resumeId}='${sanitized}'`;
 }
 
 function normalizeRecord(record: AirtableRecord<ExperienceFields>): ExperienceRecord {
@@ -91,7 +90,6 @@ export async function GET(req: NextRequest) {
       filterByFormula: toFilterFormula(resumeId),
       fields: [
         "resumeId",
-        "draftId",
         "companyName",
         "jobTitle",
         "start",
@@ -138,7 +136,7 @@ export async function POST(req: NextRequest) {
 
     const existing = await listAirtableRecords<ExperienceFields>(TABLE_NAME, {
       filterByFormula: toFilterFormula(resumeId),
-      fields: ["resumeId", "draftId"],
+      fields: ["resumeId"],
     });
 
     if (existing.length) {
@@ -156,7 +154,6 @@ export async function POST(req: NextRequest) {
     const payload = parsed.data.map((item) => ({
       fields: {
         resumeId,
-        draftId: resumeId,
         companyName: item.companyName,
         jobTitle: item.jobTitle,
         start: item.start,
