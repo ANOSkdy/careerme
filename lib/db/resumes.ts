@@ -1,5 +1,5 @@
 import type { AirtableRecord } from "./airtable";
-import type { Resume } from "../validation/schemas";
+import { HighestEducationSchema, type Resume } from "../validation/schemas";
 
 export const RESUME_AIRTABLE_FIELDS = {
   id: "id",
@@ -21,10 +21,18 @@ type AirtableFields = Record<string, unknown>;
 
 export function airtableToResume(record: AirtableRecord<AirtableFields>): Resume {
   const f = record.fields;
+  const highestEducationValue = f[
+    RESUME_AIRTABLE_FIELDS.highestEducation
+  ] as string | undefined;
+  const highestEducationResult = highestEducationValue
+    ? HighestEducationSchema.safeParse(highestEducationValue)
+    : null;
   return {
     id: String(f[RESUME_AIRTABLE_FIELDS.id]),
     userId: String(f[RESUME_AIRTABLE_FIELDS.userId]),
-    highestEducation: f[RESUME_AIRTABLE_FIELDS.highestEducation] as string | undefined,
+    highestEducation: highestEducationResult?.success
+      ? highestEducationResult.data
+      : undefined,
     stepCompleted: f[RESUME_AIRTABLE_FIELDS.stepCompleted] as number | undefined,
     selfPr: {
       draft: (f[RESUME_AIRTABLE_FIELDS.selfPrDraft] as string | undefined) ?? "",
