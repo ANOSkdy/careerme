@@ -81,18 +81,18 @@ function chunk<T>(values: T[], size: number) {
 
 export async function GET(req: NextRequest) {
   try {
-    const search = req.nextUrl.searchParams;
-    const resumeId = search.get("resumeId") ?? search.get("draftId");
-    if (!resumeId) {
-      return badRequest("resumeId is required");
-    }
-
     if (!hasAirtableConfig()) {
       console.warn("[API] Airtable config missing. Returning empty experience list.");
       return NextResponse.json({
         ok: true,
         items: [],
       });
+    }
+
+    const search = req.nextUrl.searchParams;
+    const resumeId = search.get("resumeId") ?? search.get("draftId");
+    if (!resumeId) {
+      return badRequest("resumeId is required");
     }
 
     const records = await listAirtableRecords<ExperienceFields>(TABLE_NAME, {
@@ -145,7 +145,11 @@ export async function POST(req: NextRequest) {
 
     if (!hasAirtableConfig()) {
       console.warn("[API] Airtable config missing. Skipping experience persistence.");
-      return NextResponse.json({ ok: true, count: parsed.data.length });
+      return NextResponse.json({
+        ok: true,
+        count: parsed?.data?.length || 0,
+        saved: false,
+      });
     }
 
     const existing = await listAirtableRecords<ExperienceFields>(TABLE_NAME, {

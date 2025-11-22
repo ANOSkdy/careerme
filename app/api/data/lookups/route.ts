@@ -3,7 +3,11 @@ export const revalidate = 86400;
 
 import { NextRequest, NextResponse } from "next/server";
 
-import { combineFilterFormulas, listAirtableRecords } from "../../../../lib/db/airtable";
+import {
+  combineFilterFormulas,
+  hasAirtableConfig,
+  listAirtableRecords,
+} from "../../../../lib/db/airtable";
 
 const PREFECTURES: { value: string; label: string }[] = [
   { value: "北海道", label: "北海道" },
@@ -169,6 +173,11 @@ async function fetchGroupedLookups(types: SupportedType[]): Promise<LookupGroup>
 
 export async function GET(req: NextRequest) {
   try {
+    if (!hasAirtableConfig()) {
+      console.warn("[API] Airtable config missing. Returning empty lookup payload.");
+      return NextResponse.json({ ok: true, records: {}, options: {} });
+    }
+
     const { searchParams } = req.nextUrl;
     const type = searchParams.get("type");
 
